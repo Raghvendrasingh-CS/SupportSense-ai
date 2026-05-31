@@ -1,21 +1,21 @@
 // Status badge component for ticket and pipeline states with color coding.
 const STATUS_STYLES = {
-  received: 'bg-gray-100 text-gray-700',
-  triaging: 'bg-blue-100 text-blue-700',
-  resolving: 'bg-indigo-100 text-indigo-700',
-  escalating: 'bg-orange-100 text-orange-700',
-  escalated: 'bg-red-100 text-red-700',
-  resolved: 'bg-green-100 text-green-700',
-  pending_review: 'bg-yellow-100 text-yellow-700',
-  error: 'bg-red-200 text-red-800',
-  open: 'bg-blue-50 text-blue-600',
+  received: 'bg-[#263548] text-[#e2e8f0]',
+  triaging: 'bg-blue-900/30 text-blue-400 border border-blue-500/20',
+  resolving: 'bg-indigo-900/30 text-indigo-400 border border-indigo-500/20',
+  escalating: 'bg-orange-900/30 text-orange-400 border border-orange-500/20',
+  escalated: 'bg-red-900/30 text-red-400 border border-red-500/20',
+  resolved: 'bg-green-900/30 text-green-400 border border-green-500/20',
+  pending_review: 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/20',
+  error: 'bg-red-950/40 text-red-400 border border-red-900/20',
+  open: 'bg-blue-950/30 text-blue-400 border border-blue-500/20',
 };
 
 const PRIORITY_STYLES = {
-  critical: 'bg-red-600 text-white',
-  high: 'bg-orange-500 text-white',
-  medium: 'bg-yellow-500 text-white',
-  low: 'bg-green-500 text-white',
+  critical: 'bg-red-900/50 text-red-300 border border-red-800/30',
+  high: 'bg-orange-900/40 text-orange-300 border border-orange-800/30',
+  medium: 'bg-yellow-900/30 text-yellow-300 border border-yellow-800/30',
+  low: 'bg-green-900/30 text-green-300 border border-green-800/30',
 };
 
 export default function StatusBadge({ status, type = 'status' }) {

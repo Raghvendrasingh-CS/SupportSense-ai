@@ -21,6 +21,12 @@ export default {
           dark: '#106ebe',
           light: '#deecf9',
         },
+        dark: {
+          base: '#0f172a',
+          card: '#1e293b',
+          hover: '#263548',
+          border: '#334155',
+        },
       },
       fontFamily: {
         sans: ['Segoe UI', 'system-ui', '-apple-system', 'sans-serif'],

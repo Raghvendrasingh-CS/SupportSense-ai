@@ -26,14 +26,14 @@ export default function PipelineVisualizer({ latestEvent, processing }) {
     };
 
     const statusStyles = {
-      idle: 'bg-gray-100 border-gray-200 text-gray-400',
-      active: 'bg-ms-light border-ms-blue text-ms-blue ring-2 ring-ms-blue/30',
-      completed: 'bg-green-50 border-green-300 text-green-700',
+      idle: 'bg-[#263548] border-[#334155] text-[#94a3b8]',
+      active: 'bg-blue-900/30 border-[#0ea5e9] text-[#0ea5e9] ring-2 ring-[#0ea5e9]/20',
+      completed: 'bg-green-900/20 border-green-700/50 text-green-400',
     };
 
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-5">Agent Pipeline</h3>
+      <div className="bg-[#1e293b] rounded-xl shadow-sm border border-[#334155] p-6">
+        <h3 className="text-sm font-semibold text-[#e2e8f0] mb-5">Agent Pipeline</h3>
 
         <div className="flex items-center justify-between gap-2">
           {AGENTS.map((agent, i) => {
@@ -43,10 +43,10 @@ export default function PipelineVisualizer({ latestEvent, processing }) {
                 <div className={`flex-1 text-center p-4 rounded-xl border-2 transition-all duration-300 ${statusStyles[status]}`}>
                   <div className="flex items-center justify-center mb-2">
                     {status === 'active' && (
-                      <span className="w-2 h-2 bg-ms-blue rounded-full animate-pulse-dot mr-2" />
+                      <span className="w-2 h-2 bg-[#0ea5e9] rounded-full animate-pulse-dot mr-2" />
                     )}
                     {status === 'completed' && (
-                      <svg className="w-4 h-4 text-green-600 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-4 h-4 text-green-400 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     )}
@@ -56,7 +56,7 @@ export default function PipelineVisualizer({ latestEvent, processing }) {
                 </div>
 
                 {i < AGENTS.length - 1 && (
-                  <svg className="w-6 h-6 text-gray-300 mx-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-6 h-6 text-[#475569] mx-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 )}
@@ -65,15 +65,15 @@ export default function PipelineVisualizer({ latestEvent, processing }) {
           })}
         </div>
 
-        <div className="mt-4 flex items-center justify-center gap-6 text-xs text-gray-500">
+        <div className="mt-4 flex items-center justify-center gap-6 text-xs text-[#94a3b8]">
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-ms-light border border-ms-blue" /> Work IQ
+            <span className="w-3 h-3 rounded bg-blue-900/30 border border-[#0ea5e9]" /> Work IQ
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-purple-100 border border-purple-300" /> Fabric IQ
+            <span className="w-3 h-3 rounded bg-purple-900/30 border border-purple-500/50" /> Fabric IQ
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-green-100 border border-green-300" /> Microsoft Graph
+            <span className="w-3 h-3 rounded bg-green-900/30 border border-green-500/50" /> Microsoft Graph
           </span>
         </div>
       </div>

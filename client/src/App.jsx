@@ -106,7 +106,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#0f172a]">
       <Header
         connected={connected}
         demoMode={demoMode}
@@ -117,7 +117,7 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <PipelineVisualizer latestEvent={latestEvent} processing={processing} />
 
-        <div className="mt-6 border-b border-gray-200">
+        <div className="mt-6 border-b border-[#334155]">
           <nav className="flex gap-6">
             {tabs.map((tab) => (
               <button
@@ -125,8 +125,8 @@ export default function App() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-ms-blue text-ms-blue'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-[#0ea5e9] text-[#0ea5e9]'
+                    : 'border-transparent text-[#94a3b8] hover:text-[#e2e8f0]'
                 }`}
               >
                 {tab.label}
@@ -170,8 +170,8 @@ export default function App() {
         )}
       </main>
 
-      <footer className="border-t border-gray-200 bg-white mt-12">
-        <div className="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-gray-400">
+      <footer className="border-t border-[#334155] bg-[#1e293b] mt-12">
+        <div className="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-[#64748b]">
           SupportSense AI · Microsoft Agents League Hackathon 2025 · Enterprise Agents Track · Work IQ + Fabric IQ
         </div>
       </footer>
