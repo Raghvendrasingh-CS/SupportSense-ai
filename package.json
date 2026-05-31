@@ -1,0 +1,17 @@
+{
+  "name": "supportsense-ai",
+  "version": "1.0.0",
+  "description": "SupportSense AI — Enterprise support intelligence for Microsoft Agents League Hackathon 2025",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "start": "cd server && npm start",
+    "build": "cd client && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

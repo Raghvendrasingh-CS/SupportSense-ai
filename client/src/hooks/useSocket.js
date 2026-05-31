@@ -1,0 +1,61 @@
+// Socket.io hook for real-time pipeline event streaming from backend.
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { io } from 'socket.io-client';
+
+const MODULE = 'useSocket';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+
+export function useSocket() {
+  const socketRef = useRef(null);
+  const [connected, setConnected] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [latestEvent, setLatestEvent] = useState(null);
+
+  const addEvent = useCallback((eventName, data) => {
+    const entry = { event: eventName, data, receivedAt: new Date().toISOString() };
+    console.log(`[${MODULE}] ${new Date().toISOString()} Event: ${eventName}`, data);
+    setLatestEvent(entry);
+    setEvents((prev) => [entry, ...prev].slice(0, 100));
+  }, []);
+
+  useEffect(() => {
+    try {
+      console.log(`[${MODULE}] ${new Date().toISOString()} Connecting to ${SOCKET_URL}`);
+      const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        console.log(`[${MODULE}] ${new Date().toISOString()} Connected`);
+        setConnected(true);
+      });
+
+      socket.on('disconnect', () => {
+        console.log(`[${MODULE}] ${new Date().toISOString()} Disconnected`);
+        setConnected(false);
+      });
+
+      const eventTypes = [
+        'connection:established',
+        'pipeline:started', 'pipeline:completed', 'pipeline:error',
+        'triage:started', 'triage:completed', 'triage:error',
+        'resolution:started', 'resolution:completed', 'resolution:error',
+        'escalation:started', 'escalation:completed', 'escalation:error',
+        'batch:started', 'batch:completed',
+      ];
+
+      eventTypes.forEach((eventName) => {
+        socket.on(eventName, (data) => addEvent(eventName, data));
+      });
+
+      return () => {
+        socket.disconnect();
+      };
+    } catch (error) {
+      console.error(`[${MODULE}] ${new Date().toISOString()} ERROR:`, error);
+    }
+  }, [addEvent]);
+
+  const clearEvents = useCallback(() => setEvents([]), []);
+
+  return { connected, events, latestEvent, clearEvents, socket: socketRef.current };
+}
