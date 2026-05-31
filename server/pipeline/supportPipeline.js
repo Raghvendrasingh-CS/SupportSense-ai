@@ -204,17 +204,35 @@ export async function processBatch(ticketList, emitFn = null) {
   }
 }
 
+export function clearTickets() {
+  ticketStore.clear();
+  log(MODULE, 'Ticket store cleared');
+}
+
 export function seedDemoTickets() {
+  ticketStore.clear();
   seedDemoMemory();
   const demos = [
-    { subject: 'Cannot access SharePoint project site — Access Denied', description: 'Getting access denied when trying to open the Contoso Project Alpha SharePoint site. Was working yesterday.', requesterId: 'user-001' },
-    { subject: 'Outlook calendar not syncing with mobile device', description: 'Calendar events created on desktop Outlook are not appearing on my iPhone Outlook app. Email sync works fine.', requesterId: 'user-002' },
-    { subject: 'Teams meeting audio cutting out during calls', description: 'During Teams video calls, my audio drops every few minutes. Video works fine. This is blocking my client meetings.', requesterId: 'user-003' },
-    {
-      subject: "Threatening legal action — 4th time reporting data export bug",
-      description: "This is the FOURTH time I am reporting the exact same data export issue. Customer ID: C-44821. I have been a paying customer for 3 years and this is completely unacceptable. I am now consulting my legal team regarding breach of service agreement. I demand an immediate response from a senior manager.",
-      requesterId: "sunita@logistics.co.in"
-    }
+    { subject: 'Cannot access SharePoint project site — Access Denied', description: 'Getting access denied when trying to open the Contoso Project Alpha SharePoint site. Was working yesterday. Other team members can access it fine. I need this for today\'s client presentation.', requesterId: 'priya.sharma@techcorp.com' },
+    { subject: 'ENTIRE SYSTEM DOWN — 200 stores affected — EMERGENCY', description: 'Our entire point of sale system has been down across all 200 stores since 9 AM this morning. We are losing thousands of dollars every single minute. I have escalated internally and need someone to call me immediately. This is completely unacceptable.', requesterId: 'david.park@retailchain.com' },
+    { subject: 'Outlook calendar not syncing with mobile device', description: 'Calendar events created on desktop Outlook are not appearing on my iPhone Outlook app. Email sync works fine. I have tried restarting both devices. This has been happening for 3 days.', requesterId: 'arjun.mehta@globalinc.com' },
+    { subject: 'Threatening legal action — 4th time reporting data export bug', description: 'This is the FOURTH time I am reporting the exact same data export issue. Customer ID: C-44821. I have been a paying customer for 3 years and this is completely unacceptable. I am now consulting my legal team regarding breach of service agreement.', requesterId: 'sunita@logistics.co.in' },
+    { subject: 'Teams meeting audio cutting out during client calls', description: 'During Teams video calls my audio drops every few minutes. Video works fine. This is blocking my client meetings and costing us business. Started after the last Windows update.', requesterId: 'sarah.johnson@enterprise.co' },
+    { subject: 'Possible unauthorized access to admin panel detected', description: 'Our security team detected unauthorized login attempts from unknown IP addresses to our admin panel. Error code 0x4F21. This may be a breach. Need immediate response from your security team.', requesterId: 'james.wilson@bank.com' },
+    { subject: 'How to reset two-factor authentication on new phone', description: 'I got a new phone last week and need to reset my two-factor authentication. My old authenticator app is no longer working and I cannot log in to my account at all.', requesterId: 'michelle.chen@designstudio.com' },
+    { subject: 'SharePoint file upload failing for large files over 100MB', description: 'When trying to upload video files larger than 100MB to our SharePoint document library the upload fails at around 80 percent. Smaller files work fine. We need to share project videos with the client.', requesterId: 'vikram.nair@startupxyz.in' },
+    { subject: 'Teams channel permissions not updating after role change', description: 'I was promoted to team lead last week but my Teams channel permissions have not been updated. I cannot access the management channel or create new channels. HR confirmed the role change in the system.', requesterId: 'rohan.kapoor@manufacturing.com' },
+    { subject: 'Exchange email delivery delayed by 4 to 6 hours', description: 'Emails sent from our Exchange server to external clients are being delayed by 4 to 6 hours. Internal emails work instantly. This is causing serious communication problems with our customers.', requesterId: 'ananya.bose@finance.org' },
+    { subject: 'OneDrive sync stuck at 99 percent for 2 days', description: 'My OneDrive has been stuck syncing at 99 percent for the past 2 days. I have tried pausing and resuming, restarting the app, and signing out and back in. Nothing works. I have important files that are not backed up.', requesterId: 'kavya.iyer@media.com' },
+    { subject: 'New employee cannot receive any emails — mailbox not provisioned', description: 'We hired a new developer who started yesterday. Their Microsoft 365 account was created but they are not receiving any emails. The mailbox does not appear to be provisioned correctly. This is blocking their onboarding.', requesterId: 'thomas.baker@healthcare.org' },
+    { subject: 'SharePoint search returning no results for any query', description: 'The search function in our main SharePoint site has stopped returning results completely. Searching for document names, people, or any content returns zero results. This was working fine last week.', requesterId: 'lisa.park@agency.co' },
+    { subject: 'Teams status showing offline even when actively working', description: 'My Teams presence status keeps showing as offline or away even when I am actively using my computer. Clients and colleagues think I am unavailable. I have checked the status settings and everything looks correct.', requesterId: 'nikhil.sharma@retail.com' },
+    { subject: 'Cannot install Microsoft 365 apps — license error 0x80004005', description: 'Getting error 0x80004005 when trying to install Microsoft 365 apps on a new laptop. The license is assigned in the admin portal. I have tried the offline installer and the online installer. Same error both times.', requesterId: 'emma.thompson@corp.com' },
+    { subject: 'Shared mailbox not appearing in Outlook after permissions granted', description: 'Admin granted me access to the sales shared mailbox 3 days ago but it is still not appearing in my Outlook. I have tried removing and re-adding my account. The permission shows correctly in the admin portal.', requesterId: 'aditya.kumar@freelance.in' },
+    { subject: 'Teams recording not saving to SharePoint after meeting ends', description: 'Meeting recordings are not being saved to SharePoint automatically after Teams meetings end. The recording starts fine but after the meeting the file is nowhere to be found. This has happened for the last 5 meetings.', requesterId: 'riya.patel@agency.com' },
+    { subject: 'Azure AD conditional access blocking VPN users from email', description: 'Since the new conditional access policy was applied yesterday all users connecting via VPN are being blocked from accessing Outlook and Teams. Around 45 remote employees are affected. We need an urgent exception or rollback.', requesterId: 'carlos.mendez@logistics.net' },
+    { subject: 'Power Automate flow failing with authentication error', description: 'Our critical invoice processing Power Automate flow has been failing since yesterday with an authentication error. It processes around 200 invoices per day and everything is now stuck. Finance team is blocked.', requesterId: 'yuki.tanaka@finance.jp' },
+    { subject: 'Request for Microsoft 365 usage report for last quarter', description: 'Could you please provide a usage report for our Microsoft 365 tenant for Q1 2025? We need active user counts, Teams meeting minutes, SharePoint storage used, and Exchange mailbox sizes for our board presentation next week.', requesterId: 'sarah.okonkwo@ngo.org' },
   ];
 
   return demos.map((d) => createTicket(d));

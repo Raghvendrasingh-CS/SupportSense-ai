@@ -8,19 +8,21 @@ import { config, hasOpenAICredentials } from '../config/env.js';
 const MODULE = 'TriageAgent';
 
 const CATEGORY_KEYWORDS = {
-  SharePoint: ['sharepoint', 'site', 'document library', 'permission', 'access denied', 'sp '],
-  Exchange: ['outlook', 'email', 'calendar', 'exchange', 'mailbox', 'sync'],
-  Teams: ['teams', 'meeting', 'audio', 'video', 'call', 'chat'],
-  Identity: ['password', 'login', 'mfa', 'authentication', 'sign in', 'locked out'],
-  Network: ['vpn', 'network', 'connection', 'wifi', 'latency', 'slow'],
-  Hardware: ['laptop', 'monitor', 'keyboard', 'printer', 'device'],
+  SharePoint: ['sharepoint', 'site', 'document library', 'permission', 'access denied', 'sp ', 'file upload', 'search returning', 'data export'],
+  Exchange: ['outlook', 'email', 'calendar', 'exchange', 'mailbox', 'sync', 'email delivery', 'shared mailbox', 'mailbox not provisioned'],
+  Teams: ['teams', 'meeting', 'audio', 'video', 'call', 'chat', 'teams recording', 'teams status', 'teams channel', 'presence'],
+  Identity: ['password', 'login', 'mfa', 'authentication', 'sign in', 'locked out', 'two-factor', '2fa', 'license error', 'microsoft 365 apps', 'conditional access', 'azure ad', 'unauthorized access', 'admin panel'],
+  Network: ['vpn', 'network', 'connection', 'wifi', 'latency', 'slow', 'vpn users', 'proxy', 'firewall'],
+  PowerPlatform: ['power automate', 'flow', 'automate', 'automation', 'workflow'],
+  Complaint: ['legal action', 'lawsuit', 'legal team', 'threatening', 'fourth time', '4th time', 'third time', '3rd time', 'unacceptable', 'breach of service', 'completely unacceptable', '3 years', 'paying customer'],
+  Hardware: ['laptop', 'monitor', 'keyboard', 'printer', 'device', 'onedrive sync'],
 };
 
 const PRIORITY_SIGNALS = {
-  critical: ['down', 'outage', 'cannot work', 'production', 'all users', 'company-wide', 'urgent'],
-  high: ['blocked', 'deadline', 'executive', 'vip', 'cannot access', 'failed'],
-  medium: ['issue', 'problem', 'error', 'not working', 'help'],
-  low: ['question', 'how to', 'request', 'enhancement', 'minor'],
+  critical: ['down', 'outage', 'cannot work', 'production', 'all users', 'company-wide', 'urgent', 'emergency', 'entire system', 'all stores', '200 stores', 'legal action', 'lawsuit', 'legal team', 'breach', 'unauthorized access', 'security breach', 'hacked', 'data loss', 'immediately', 'asap', 'fourth time', '4th time', 'threatening', 'completely unacceptable'],
+  high: ['blocked', 'deadline', 'executive', 'vip', 'cannot access', 'failed', 'third time', '3rd time', 'still not working', 'escalate', 'manager', 'multiple users', 'team blocked', 'finance blocked', 'client facing', '45 employees', '200 invoices', 'stuck for days'],
+  medium: ['issue', 'problem', 'error', 'not working', 'help', 'not syncing', 'not appearing', 'not saving', 'not updating', 'failing', 'stuck'],
+  low: ['question', 'how to', 'request', 'enhancement', 'minor', 'report', 'usage report', 'information', 'could you please'],
 };
 
 function classifyCategory(text) {
@@ -51,12 +53,21 @@ function classifyPriority(text, userContext) {
     }
   }
 
+  const angrySignals = ['legal action', 'lawsuit', 'threatening', 'unacceptable', 'fourth time', '4th time', 'third time', 'furious', 'disgusting'];
+  const hasAngrySentiment = angrySignals.some(s => lower.includes(s));
+  if (hasAngrySentiment && (priority === 'medium' || priority === 'low')) {
+    priority = 'critical';
+    confidence = 0.92;
+  }
+
+  const sentiment = hasAngrySentiment ? 'angry' : lower.includes('frustrated') || lower.includes('still not') || lower.includes('again') ? 'frustrated' : 'neutral';
+
   if (userContext?.currentWorkload === 'high' && priority === 'medium') {
     priority = 'high';
     confidence = 0.75;
   }
 
-  return { priority, confidence };
+  return { priority, confidence, sentiment };
 }
 
 function extractRequiredSkills(category) {
@@ -66,6 +77,8 @@ function extractRequiredSkills(category) {
     Teams: ['Teams', 'Network'],
     Identity: ['Identity', 'Security'],
     Network: ['Network', 'Security'],
+    PowerPlatform: ['Power Automate', 'Azure'],
+    Complaint: ['Senior Support', 'Account Management', 'Legal'],
     Hardware: ['Hardware'],
     General: ['General Support'],
   };
@@ -135,6 +148,7 @@ export async function triageTicket(ticket, emitFn = null) {
     const text = `${ticket.subject} ${ticket.description || ''}`;
     const categoryResult = classifyCategory(text);
     const priorityResult = classifyPriority(text, employeeContext);
+    const sentiment = priorityResult.sentiment;
 
     const llmAnalysis = await analyzeWithLLM(ticket);
 
@@ -159,7 +173,7 @@ export async function triageTicket(ticket, emitFn = null) {
         categoryConfidence: categoryResult.confidence,
         priority: finalPriority,
         priorityConfidence: priorityResult.confidence,
-        sentiment: llmAnalysis?.sentiment || 'neutral',
+        sentiment: llmAnalysis?.sentiment || sentiment || 'neutral',
         summary: llmAnalysis?.summary || ticket.subject,
       },
       requester: {
