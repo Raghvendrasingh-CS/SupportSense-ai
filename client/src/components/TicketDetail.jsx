@@ -1,6 +1,7 @@
 // Ticket detail view showing full pipeline results from all three agents.
 import StatusBadge from './StatusBadge';
 import CustomerHistoryPanel from './CustomerHistoryPanel';
+import ReasoningChain from './ReasoningChain';
 
 export default function TicketDetail({ ticket, customerHistory, riskProfile }) {
   try {
@@ -15,6 +16,7 @@ export default function TicketDetail({ ticket, customerHistory, riskProfile }) {
     }
 
     const pipeline = ticket.pipeline;
+    const reasoning = ticket?.pipeline?.reasoning || ticket?.reasoning || null;
 
     return (
       <div className="bg-[#1e293b] rounded-xl shadow-sm border border-[#334155] p-6 space-y-6">
@@ -95,6 +97,8 @@ export default function TicketDetail({ ticket, customerHistory, riskProfile }) {
                 </div>
               )}
             </PipelineStep>
+
+            <ReasoningChain reasoning={reasoning} />
 
              <div className="flex items-center justify-between pt-4 border-t border-[#334155]">
               <span className="text-xs text-[#94a3b8]">
