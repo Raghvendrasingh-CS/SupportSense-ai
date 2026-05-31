@@ -5,6 +5,7 @@ import { triageTicket } from '../agents/TriageAgent.js';
 import { resolveTicket } from '../agents/ResolutionAgent.js';
 import { escalateTicket } from '../agents/EscalationAgent.js';
 import { getCustomerHistory, addToMemory, getCustomerRiskProfile, getSentimentTrend, seedDemoMemory, getMemoryStats } from '../agents/ticketMemory.js';
+import { buildReasoningChain } from '../agents/reasoningChain.js';
 
 const MODULE = 'SupportPipeline';
 
@@ -105,6 +106,8 @@ export async function processTicket(ticketData, emitFn = null) {
       ticket.status = 'pending_review';
     }
 
+    const reasoning = buildReasoningChain(ticket, triageResult, resolutionResult, escalationResult, customerHistory, sentimentTrend); log(MODULE, `Reasoning chain built: ${reasoning.totalSteps} steps, key decision: ${reasoning.keyDecisionPoint}`);
+
     const finalStatus = ticket.status === 'resolved' ? 'resolved' : ticket.status === 'escalated' ? 'escalated' : 'pending_review';
     addToMemory(
       customerEmail,
@@ -123,6 +126,7 @@ export async function processTicket(ticketData, emitFn = null) {
       triage: triageResult,
       resolution: resolutionResult,
       escalation: escalationResult,
+      reasoning: reasoning,
       totalProcessingTimeMs,
       completedAt: new Date().toISOString(),
     };
@@ -136,6 +140,7 @@ export async function processTicket(ticketData, emitFn = null) {
       triage: triageResult,
       resolution: resolutionResult,
       escalation: escalationResult,
+      reasoning: reasoning,
       customerHistory,
       riskProfile,
       sentimentTrend,
