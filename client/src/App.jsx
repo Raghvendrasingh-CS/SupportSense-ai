@@ -157,7 +157,7 @@ export default function App() {
               />
             </div>
             <div className="lg:col-span-2">
-              <TicketDetail ticket={selectedTicket} />
+              <TicketDetail ticket={selectedTicket} customerHistory={selectedTicket?.customerHistory || selectedTicket?.pipeline?.customerHistory || []} riskProfile={selectedTicket?.riskProfile || selectedTicket?.pipeline?.riskProfile || null} />
             </div>
           </div>
         )}

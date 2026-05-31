@@ -1,7 +1,8 @@
 // Ticket detail view showing full pipeline results from all three agents.
 import StatusBadge from './StatusBadge';
+import CustomerHistoryPanel from './CustomerHistoryPanel';
 
-export default function TicketDetail({ ticket }) {
+export default function TicketDetail({ ticket, customerHistory, riskProfile }) {
   try {
     if (!ticket) {
       return (
@@ -32,6 +33,8 @@ export default function TicketDetail({ ticket }) {
             )}
           </div>
         </div>
+
+        <CustomerHistoryPanel customerHistory={customerHistory} riskProfile={riskProfile} />
 
         {!pipeline ? (
           <p className="text-sm text-gray-400">Pipeline not yet processed for this ticket.</p>

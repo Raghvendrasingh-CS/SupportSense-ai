@@ -4,6 +4,7 @@ import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
 import { triageTicket } from '../agents/TriageAgent.js';
 import { resolveTicket } from '../agents/ResolutionAgent.js';
 import { escalateTicket } from '../agents/EscalationAgent.js';
+import { getCustomerHistory, addToMemory, getCustomerRiskProfile, getSentimentTrend, seedDemoMemory, getMemoryStats } from '../agents/ticketMemory.js';
 
 const MODULE = 'SupportPipeline';
 
@@ -61,6 +62,18 @@ export async function processTicket(ticketData, emitFn = null) {
     ticket.updatedAt = new Date().toISOString();
     ticketStore.set(ticket.id, ticket);
 
+    const customerEmail = ticket.requesterId.includes('@') ? ticket.requesterId : ticket.requesterId + '@company.com';
+    const customerHistory = getCustomerHistory(customerEmail);
+    const riskProfile = getCustomerRiskProfile(customerEmail);
+    const sentimentTrend = getSentimentTrend(customerEmail);
+    log(MODULE, `Customer memory loaded for ${customerEmail}: ${customerHistory.length} previous tickets, risk: ${riskProfile.riskLevel}`);
+    if (sentimentTrend.shouldBoostUrgency) {
+      log(MODULE, `Sentiment trend escalating for ${customerEmail} — urgency will be boosted`);
+    }
+    ticket.customerHistory = customerHistory;
+    ticket.riskProfile = riskProfile;
+    ticket.sentimentTrend = sentimentTrend;
+
     const triageStart = measureStart();
     const triageResult = await triageTicket(ticket, emitFn);
     log(MODULE, 'TriageAgent finished', { processingTimeMs: measureEnd(triageStart) });
@@ -92,6 +105,18 @@ export async function processTicket(ticketData, emitFn = null) {
       ticket.status = 'pending_review';
     }
 
+    const finalStatus = ticket.status === 'resolved' ? 'resolved' : ticket.status === 'escalated' ? 'escalated' : 'pending_review';
+    addToMemory(
+      customerEmail,
+      ticket.id,
+      ticket.subject,
+      triageResult.classification.category,
+      triageResult.classification.priority,
+      triageResult.classification.sentiment || 'neutral',
+      finalStatus,
+      resolutionResult.resolution?.summary?.slice(0, 100) || ticket.subject
+    );
+
     const totalProcessingTimeMs = measureEnd(pipelineStart);
 
     ticket.pipeline = {
@@ -111,6 +136,10 @@ export async function processTicket(ticketData, emitFn = null) {
       triage: triageResult,
       resolution: resolutionResult,
       escalation: escalationResult,
+      customerHistory,
+      riskProfile,
+      sentimentTrend,
+      memoryStats: getMemoryStats(),
       totalProcessingTimeMs,
       timestamp: new Date().toISOString(),
     };
@@ -176,11 +205,19 @@ export async function processBatch(ticketList, emitFn = null) {
 }
 
 export function seedDemoTickets() {
+  seedDemoMemory();
   const demos = [
     { subject: 'Cannot access SharePoint project site — Access Denied', description: 'Getting access denied when trying to open the Contoso Project Alpha SharePoint site. Was working yesterday.', requesterId: 'user-001' },
     { subject: 'Outlook calendar not syncing with mobile device', description: 'Calendar events created on desktop Outlook are not appearing on my iPhone Outlook app. Email sync works fine.', requesterId: 'user-002' },
     { subject: 'Teams meeting audio cutting out during calls', description: 'During Teams video calls, my audio drops every few minutes. Video works fine. This is blocking my client meetings.', requesterId: 'user-003' },
+    {
+      subject: "Threatening legal action — 4th time reporting data export bug",
+      description: "This is the FOURTH time I am reporting the exact same data export issue. Customer ID: C-44821. I have been a paying customer for 3 years and this is completely unacceptable. I am now consulting my legal team regarding breach of service agreement. I demand an immediate response from a senior manager.",
+      requesterId: "sunita@logistics.co.in"
+    }
   ];
 
   return demos.map((d) => createTicket(d));
 }
+
+export { getMemoryStats, getCustomerHistory, getCustomerRiskProfile } from '../agents/ticketMemory.js';
