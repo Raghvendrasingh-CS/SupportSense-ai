@@ -6,20 +6,32 @@ import { resolveTicket } from '../agents/ResolutionAgent.js';
 import { escalateTicket } from '../agents/EscalationAgent.js';
 import { getCustomerHistory, addToMemory, getCustomerRiskProfile, getSentimentTrend, seedDemoMemory, getMemoryStats } from '../agents/ticketMemory.js';
 import { buildReasoningChain } from '../agents/reasoningChain.js';
+import { db } from '../db/store.js';
 
 const MODULE = 'SupportPipeline';
 
-const ticketStore = new Map();
-
 export function getTicket(ticketId) {
-  return ticketStore.get(ticketId) || null;
+  const tickets = db.getTickets();
+  return tickets.find(t => t.id === ticketId) || null;
 }
 
 export function getAllTickets() {
-  return Array.from(ticketStore.values());
+  return db.getTickets();
+}
+
+export function saveTicket(ticket) {
+  const tickets = db.getTickets();
+  const idx = tickets.findIndex(t => t.id === ticket.id);
+  if (idx !== -1) {
+    tickets[idx] = ticket;
+  } else {
+    tickets.push(ticket);
+  }
+  db.saveTickets(tickets);
 }
 
 export function createTicket(data) {
+  const tickets = db.getTickets();
   const ticket = {
     id: data.id || `TKT-${uuidv4().slice(0, 8).toUpperCase()}`,
     subject: data.subject,
@@ -28,11 +40,12 @@ export function createTicket(data) {
     status: 'received',
     priority: data.priority || null,
     category: data.category || null,
-    createdAt: new Date().toISOString(),
+    createdAt: data.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     pipeline: null,
   };
-  ticketStore.set(ticket.id, ticket);
+  tickets.push(ticket);
+  db.saveTickets(tickets);
   return ticket;
 }
 
@@ -40,7 +53,7 @@ export async function processTicket(ticketData, emitFn = null) {
   const pipelineStart = measureStart();
   try {
     const ticket = typeof ticketData === 'string'
-      ? ticketStore.get(ticketData)
+      ? getTicket(ticketData)
       : ticketData.id
         ? ticketData
         : createTicket(ticketData);
@@ -61,7 +74,7 @@ export async function processTicket(ticketData, emitFn = null) {
 
     ticket.status = 'triaging';
     ticket.updatedAt = new Date().toISOString();
-    ticketStore.set(ticket.id, ticket);
+    saveTicket(ticket);
 
     const customerEmail = ticket.requesterId.includes('@') ? ticket.requesterId : ticket.requesterId + '@company.com';
     const customerHistory = getCustomerHistory(customerEmail);
@@ -83,7 +96,7 @@ export async function processTicket(ticketData, emitFn = null) {
     ticket.priority = triageResult.classification.priority;
     ticket.category = triageResult.classification.category;
     ticket.updatedAt = new Date().toISOString();
-    ticketStore.set(ticket.id, ticket);
+    saveTicket(ticket);
 
     const resolutionStart = measureStart();
     const resolutionResult = await resolveTicket(ticket, triageResult, emitFn);
@@ -91,7 +104,7 @@ export async function processTicket(ticketData, emitFn = null) {
 
     ticket.status = resolutionResult.status === 'auto_resolved' ? 'resolved' : 'escalating';
     ticket.updatedAt = new Date().toISOString();
-    ticketStore.set(ticket.id, ticket);
+    saveTicket(ticket);
 
     const escalationStart = measureStart();
     const escalationResult = await escalateTicket(ticket, triageResult, resolutionResult, emitFn);
@@ -131,7 +144,7 @@ export async function processTicket(ticketData, emitFn = null) {
       completedAt: new Date().toISOString(),
     };
     ticket.updatedAt = new Date().toISOString();
-    ticketStore.set(ticket.id, ticket);
+    saveTicket(ticket);
 
     const pipelineResult = {
       ticketId: ticket.id,
@@ -158,6 +171,31 @@ export async function processTicket(ticketData, emitFn = null) {
       emitFn('pipeline:completed', pipelineResult);
     }
 
+    // Cross-ticket incident pattern detection
+    try {
+      const allTickets = getAllTickets();
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const recentSameCategory = allTickets.filter(t => 
+        t.category === ticket.category && 
+        new Date(t.createdAt) > tenMinutesAgo
+      );
+
+      if (recentSameCategory.length >= 3 && (ticket.category === 'Teams' || ticket.category === 'Exchange' || ticket.category === 'SharePoint')) {
+        const hasHighOrCritical = recentSameCategory.some(t => t.priority === 'critical' || t.priority === 'high');
+        if (hasHighOrCritical && emitFn) {
+          emitFn('incident:detected', {
+            category: ticket.category,
+            ticketCount: recentSameCategory.length,
+            timeWindowMinutes: 10,
+            relatedTickets: recentSameCategory.map(t => ({ id: t.id, subject: t.subject, priority: t.priority })),
+            recommendation: `Possible service-wide incident on ${ticket.category}. Correlate with Microsoft Graph service health.`
+          });
+        }
+      }
+    } catch (eErr) {
+      logError(MODULE, 'Incident pattern detection failed', eErr);
+    }
+
     return pipelineResult;
   } catch (error) {
     logError(MODULE, 'processTicket failed', error);
@@ -176,17 +214,16 @@ export async function processTicket(ticketData, emitFn = null) {
 export async function processBatch(ticketList, emitFn = null) {
   const startMs = measureStart();
   try {
-    log(MODULE, `Processing batch of ${ticketList.length} tickets`);
+    log(MODULE, `Processing batch of ${ticketList.length} tickets in parallel`);
 
     if (emitFn) {
       emitFn('batch:started', { count: ticketList.length, timestamp: new Date().toISOString() });
     }
 
-    const results = [];
-    for (const ticketData of ticketList) {
-      const result = await processTicket(ticketData, emitFn);
-      results.push(result);
-    }
+    // Process tickets concurrently (limit/concurrency depends on inputs, here we run them in parallel)
+    const promises = ticketList.map(t => processTicket(t, emitFn));
+    const settlements = await Promise.allSettled(promises);
+    const results = settlements.map((s, idx) => s.status === 'fulfilled' ? s.value : { status: 'error', error: s.reason, ticketId: ticketList[idx]?.id });
 
     const batchResult = {
       processed: results.length,
@@ -210,14 +247,25 @@ export async function processBatch(ticketList, emitFn = null) {
 }
 
 export function clearTickets() {
-  ticketStore.clear();
+  db.saveTickets([]);
   log(MODULE, 'Ticket store cleared');
 }
 
-export function seedDemoTickets() {
-  ticketStore.clear();
-  seedDemoMemory();
+export function getDemoTickets() {
   const demos = [
+    { subject: 'ENTIRE SYSTEM DOWN — 200 stores affected — EMERGENCY', description: 'Our entire point of sale system has been down across all 200 stores since 9 AM this morning. We are losing thousands of dollars every single minute. I have escalated internally and need someone to call me immediately. This is completely unacceptable.', requesterId: 'david.park@retailchain.com' },
+    { subject: 'Threatening legal action — 4th time reporting data export bug', description: 'This is the FOURTH time I am reporting the exact same data export issue. Customer ID: C-44821. I have been a paying customer for 3 years and this is completely unacceptable. I am now consulting my legal team regarding breach of service agreement.', requesterId: 'sunita@logistics.co.in' },
+    { subject: 'How to reset two-factor authentication on new phone', description: 'I got a new phone last week and need to reset my two-factor authentication. My old authenticator app is no longer working and I cannot log in to my account at all.', requesterId: 'michelle.chen@designstudio.com' }
+  ];
+  // Map and create
+  return demos.map((d) => createTicket(d));
+}
+
+export function seedDemoTickets() {
+  clearTickets();
+  seedDemoMemory();
+  
+  const allDemos = [
     { subject: 'Cannot access SharePoint project site — Access Denied', description: 'Getting access denied when trying to open the Contoso Project Alpha SharePoint site. Was working yesterday. Other team members can access it fine. I need this for today\'s client presentation.', requesterId: 'priya.sharma@techcorp.com' },
     { subject: 'ENTIRE SYSTEM DOWN — 200 stores affected — EMERGENCY', description: 'Our entire point of sale system has been down across all 200 stores since 9 AM this morning. We are losing thousands of dollars every single minute. I have escalated internally and need someone to call me immediately. This is completely unacceptable.', requesterId: 'david.park@retailchain.com' },
     { subject: 'Outlook calendar not syncing with mobile device', description: 'Calendar events created on desktop Outlook are not appearing on my iPhone Outlook app. Email sync works fine. I have tried restarting both devices. This has been happening for 3 days.', requesterId: 'arjun.mehta@globalinc.com' },
@@ -240,7 +288,18 @@ export function seedDemoTickets() {
     { subject: 'Request for Microsoft 365 usage report for last quarter', description: 'Could you please provide a usage report for our Microsoft 365 tenant for Q1 2025? We need active user counts, Teams meeting minutes, SharePoint storage used, and Exchange mailbox sizes for our board presentation next week.', requesterId: 'sarah.okonkwo@ngo.org' },
   ];
 
-  return demos.map((d) => createTicket(d));
+  // Seed all 20 tickets into db
+  allDemos.forEach((d) => createTicket(d));
+
+  // Return the 3 curated tickets for the active process flow
+  const selectCurated = [
+    'ENTIRE SYSTEM DOWN — 200 stores affected — EMERGENCY',
+    'Threatening legal action — 4th time reporting data export bug',
+    'How to reset two-factor authentication on new phone'
+  ];
+
+  const dbTickets = db.getTickets();
+  return dbTickets.filter((t) => selectCurated.includes(t.subject));
 }
 
 export { getMemoryStats, getCustomerHistory, getCustomerRiskProfile } from '../agents/ticketMemory.js';

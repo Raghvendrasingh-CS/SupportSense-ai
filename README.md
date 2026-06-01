@@ -2,24 +2,92 @@
 
 **Enterprise Support Intelligence** for the Microsoft Agents League Hackathon 2025 — Enterprise Agents Track (Work IQ + Fabric IQ tier).
 
-SupportSense AI is a three-agent support pipeline that triages, resolves, and escalates enterprise IT tickets using Microsoft Graph, Fabric IQ, and Work IQ — with full demo mode requiring zero credentials.
+SupportSense AI is a three-agent autonomous support pipeline that triages, resolves, and escalates enterprise IT tickets using Microsoft Graph, Fabric IQ, and Work IQ — with transparent AI reasoning, cross-agent shared memory, and full demo mode requiring zero credentials.
 
 ## Architecture
 
-```
-Ticket → TriageAgent → ResolutionAgent → EscalationAgent → Result
-              ↓               ↓                  ↓
-         Work IQ +       Fabric IQ KB      Work IQ Agent
-         Graph API       + Similar Tickets   Matching + SLA
+```mermaid
+graph LR
+    subgraph Input
+        A[Support Ticket] --> B[Express API]
+    end
+
+    subgraph "AI Agent Pipeline"
+        B --> C[TriageAgent]
+        C --> D[ResolutionAgent]
+        D --> E[EscalationAgent]
+    end
+
+    subgraph "Microsoft Integrations"
+        C --> F["Work IQ<br/>(Classification)"]
+        C --> G["Microsoft Graph<br/>(User Profile)"]
+        D --> H["Fabric IQ<br/>(KB Search)"]
+        D --> I["Work IQ<br/>(Time Prediction)"]
+        E --> J["Work IQ<br/>(Agent Matching)"]
+        E --> K["Teams Webhook<br/>(Adaptive Cards)"]
+    end
+
+    subgraph "Cross-Agent Memory"
+        C --> L[Shared Context Store]
+        D --> L
+        E --> L
+        L --> M[Reasoning Chain]
+    end
+
+    subgraph Output
+        E --> N[Resolution / Escalation]
+        M --> O[Transparent AI Reasoning]
+        N --> P["Real-time Dashboard<br/>(Socket.io)"]
+    end
 ```
 
 ### Three Named Agents
 
-| Agent | Role | Integrations |
-|-------|------|-------------|
-| **TriageAgent** | Classify, prioritize, route | Microsoft Graph, Work IQ, Fabric IQ |
-| **ResolutionAgent** | Generate solutions, auto-resolve | Fabric IQ KB, Work IQ predictions |
-| **EscalationAgent** | Agent assignment, SLA tracking | Work IQ, Microsoft Graph notifications |
+| Agent | Role | AI Reasoning | Microsoft Integrations |
+|-------|------|-------------|----------------------|
+| **TriageAgent** | Classify, prioritize, route tickets | NLP intent classification, sentiment analysis, confidence scoring | Microsoft Graph (user profiles, service health), Work IQ (employee context) |
+| **ResolutionAgent** | Generate solutions, auto-resolve when confident | Semantic KB search, resolution confidence thresholds, auto-resolve decisions | Fabric IQ (knowledge base, similar tickets), Work IQ (resolution time prediction) |
+| **EscalationAgent** | Agent assignment, SLA tracking, Teams escalation | Multi-factor scoring (skill match, workload, availability, tier), SLA compliance | Work IQ (agent matching, workload), Microsoft Teams (Adaptive Card webhooks) |
+
+## Key Features
+
+### 🧠 Multi-Step AI Reasoning
+- **7-step transparent reasoning chain** explains every agent decision with confidence scores
+- AI pipeline visibility from ticket intake through final routing decision
+- Each step shows signals, decisions, and Microsoft technology attribution
+- Reasoning chain expanded by default in the UI for immediate inspection
+
+### 🔄 Cross-Agent Collaboration
+- **Shared Memory Panel** visualizes how agents share knowledge across the pipeline
+- Customer history and sentiment trends inform downstream agent decisions
+- Incident pattern detection correlates tickets across categories in real-time
+
+### 🏢 Microsoft Ecosystem Integration
+- **Microsoft Graph**: User profiles, service health monitoring, email notifications
+- **Fabric IQ**: Semantic knowledge base search, ticket analytics, similar ticket lookup
+- **Work IQ**: Employee context, agent skill matching, workload insights, resolution prediction
+- **Microsoft Teams**: Adaptive Card escalation notifications via incoming webhooks
+
+### 📊 Real-Time Dashboard
+- Socket.io live event feed with pipeline state changes
+- Analytics panel with volume trends, SLA compliance, agent performance
+- Incident alert banners for correlated ticket patterns
+
+## Security & Reliability
+
+| Feature | Implementation |
+|---------|---------------|
+| **HTTP Headers** | Helmet with CSP, X-Frame-Options deny, XSS protection |
+| **Input Sanitization** | XSS library neutralizes HTML/script injection in ticket submissions |
+| **Rate Limiting** | express-rate-limit on POST endpoints (10 req/min) |
+| **API Authentication** | API key validation via `x-api-key` header (bypassed in demo mode) |
+| **WebSocket Security** | Socket.io handshake token validation |
+| **Secrets Management** | `.env` excluded from git, `.env.example` provided |
+| **Request Timeouts** | `AbortSignal.timeout(10000)` on all external API calls |
+| **Retry Resilience** | Exponential backoff retry wrapper for Microsoft API calls |
+| **Graceful Shutdown** | SIGTERM/SIGINT handlers with 10s timeout and connection draining |
+| **Database** | SQLite with `better-sqlite3` for transactional persistence |
+| **Docker** | Production Dockerfile + docker-compose with health checks |
 
 ## Quick Start
 
@@ -31,6 +99,9 @@ Ticket → TriageAgent → ResolutionAgent → EscalationAgent → Result
 ### Install & Run
 
 ```bash
+# Copy environment template
+cp .env.example .env
+
 # Install all dependencies
 npm run install:all
 
@@ -38,7 +109,16 @@ npm run install:all
 npm run dev
 ```
 
+> [!NOTE]
+> The app runs in demo mode by default with zero configuration. All Microsoft API calls use working mock fallbacks. See `.env.example` for production settings.
+
 Open **http://localhost:3000** and click **Run Demo Pipeline** to process 3 sample tickets through all three agents with live Socket.io updates.
+
+### Docker
+
+```bash
+docker-compose up --build
+```
 
 ### Demo Mode (Default)
 
@@ -58,16 +138,37 @@ WORK_IQ_API_KEY=your-workiq-key
 OPENAI_API_KEY=your-openai-key
 ```
 
+## Copilot Plugin
+
+SupportSense AI exposes a Microsoft Copilot plugin manifest at `/.well-known/ai-plugin.json` with an OpenAPI 3.0 spec at `/openapi.json`, enabling integration with Microsoft 365 Copilot for natural language ticket processing.
+
+## Deploy to Microsoft Teams
+
+SupportSense AI includes a Microsoft Teams app manifest definition to allow sideloading the agent:
+
+1. **Package the manifest**:
+   - Create a ZIP archive (e.g. `manifest.zip`) containing `server/teams-manifest/manifest.json` and two placeholder icon files (`color.png` and `outline.png`) at its root.
+2. **Sideload the app**:
+   - Navigate to the **Microsoft Teams Admin Center** (`https://admin.teams.microsoft.com`).
+   - Go to **Teams apps** > **Manage apps**.
+   - Click **Upload new app** (or **Publish an app to your org's app catalog**) and select your `manifest.zip`.
+   - Click **Publish**.
+3. **Usage**:
+   - The SupportSense AI agent will be available in chat compose extensions and the command search bar, allowing users to trigger **Submit Support Ticket** to triage issues directly in Teams.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Server health + agent list |
+| GET | `/api/config` | Configuration + integration status |
 | GET | `/api/tickets` | List all tickets |
-| POST | `/api/tickets` | Create & process a ticket |
+| POST | `/api/tickets` | Create & process a ticket through the pipeline |
+| GET | `/api/tickets/history` | Processed ticket history |
+| GET | `/api/customers/history?email=` | Customer support history + risk profile |
 | POST | `/api/demo/seed` | Seed & process 3 demo tickets |
-| GET | `/api/analytics` | Fabric IQ ticket analytics |
-| GET | `/api/agents/workload` | Work IQ agent pool |
+| GET | `/api/analytics` | Fabric IQ ticket analytics + agent performance |
+| GET | `/api/agents/workload` | Work IQ agent pool + workload insights |
 | GET | `/api/sla` | SLA compliance report |
 | GET | `/api/services/health` | M365 service health |
 
@@ -86,26 +187,25 @@ Real-time events emitted for every pipeline state change:
 ```
 SupportSense/
 ├── server/
-│   ├── agents/          TriageAgent, ResolutionAgent, EscalationAgent
-│   ├── services/        microsoftGraph, fabricIQ, workIQ
+│   ├── agents/          TriageAgent, ResolutionAgent, EscalationAgent, reasoningChain
+│   ├── services/        microsoftGraph, fabricIQ, workIQ, teamsWebhook
 │   ├── pipeline/        supportPipeline orchestrator
 │   ├── socket/          Socket.io handlers
-│   └── routes/          REST API
+│   ├── routes/          REST API with rate limiting
+│   ├── middleware/       Auth, validation, sanitization
+│   ├── utils/           Logger, retry with exponential backoff
+│   ├── db/              SQLite store with auto-migration
+│   └── config/          Environment config + integration status
 ├── client/
 │   └── src/
-│       ├── components/  Dashboard, tickets, analytics, events
+│       ├── components/  Dashboard, TicketList, TicketDetail, ReasoningChain,
+│       │                AnalyticsPanel, MemoryPanel, IncidentAlert, PipelineVisualizer
 │       ├── hooks/       useSocket
 │       └── services/    API client
+├── Dockerfile
+├── docker-compose.yml
 └── .env.example
 ```
-
-## Hackathon Highlights
-
-- **Work IQ**: Employee context, agent skill matching, workload insights, resolution time prediction
-- **Fabric IQ**: Knowledge base search, ticket analytics, similar ticket lookup, event logging
-- **Microsoft Graph**: User profiles, notifications, service health, ticket fetching
-- **Real-time UI**: Socket.io live event feed + Recharts analytics dashboard
-- **Production-ready patterns**: try/catch everywhere, mock fallbacks, processing time tracking
 
 ## License
 

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.1/schema.json",
+  "schema_version": "v2.1",
+  "name_for_human": "SupportSense AI",
+  "name_for_model": "supportsense",
+  "description_for_human": "Autonomous M365 support triage agent — classify tickets, check customer history, and route to the right agent",
+  "description_for_model": "Use this plugin to process support tickets through a three-agent pipeline using Work IQ and Fabric IQ. Returns ticket classification, customer history, resolution steps, and escalation decisions.",
+  "contact_email": "support@supportsense.ai",
+  "legal_info_url": "https://supportsense.ai/legal",
+  "logo_url": "https://supportsense.ai/logo.png",
+  "privacy_policy_url": "https://supportsense.ai/privacy",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "http://localhost:3001/openapi.json"
+  },
+  "functions": [
+    {
+      "name": "processTicket",
+      "description": "Process a support ticket through the full TriageAgent → ResolutionAgent → EscalationAgent pipeline"
+    },
+    {
+      "name": "getTicketHistory",
+      "description": "Get all processed tickets with their classification, resolution, and escalation results"
+    },
+    {
+      "name": "getCustomerHistory",
+      "description": "Get the support history and risk profile for a specific customer email"
+    },
+    {
+      "name": "getAnalytics",
+      "description": "Get support operations analytics including deflection rate, SLA compliance, and agent performance"
+    }
+  ]
+}

@@ -13,14 +13,14 @@ export default function Header({ connected, demoMode, onSeedDemo, loading }) {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-[#f1f5f9]">SupportSense AI</h1>
-                <p className="text-xs text-[#94a3b8]">Enterprise Support Intelligence · Work IQ + Fabric IQ</p>
+                <p className="text-xs text-[#94a3b8]">Autonomous M365 Support Operations · Work IQ + Fabric IQ</p>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
               {demoMode && (
                 <span className="px-3 py-1 bg-amber-900/30 text-amber-400 text-xs font-semibold rounded-full">
-                  DEMO MODE
+                  LIVE DEMO
                 </span>
               )}
 
@@ -34,7 +34,7 @@ export default function Header({ connected, demoMode, onSeedDemo, loading }) {
                 disabled={loading}
                 className="px-4 py-2 bg-[#0ea5e9] text-white text-sm font-medium rounded-lg hover:bg-[#0284c7] transition-colors disabled:opacity-50"
               >
-                {loading ? 'Processing...' : 'Run Demo Pipeline'}
+                {loading ? 'Processing queue...' : 'Process Ticket Queue'}
               </button>
             </div>
           </div>

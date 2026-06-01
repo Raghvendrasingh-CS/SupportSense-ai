@@ -32,10 +32,21 @@ export const config = {
     apiKey: process.env.OPENAI_API_KEY || '',
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   },
+  azureOpenai: {
+    endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',
+    apiKey: process.env.AZURE_OPENAI_KEY || '',
+    deployment: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o-mini',
+  },
+  teams: {
+    webhookUrl: process.env.TEAMS_WEBHOOK_URL || '',
+  }
 };
 
+export function hasTeamsWebhook() {
+  return Boolean(config.teams.webhookUrl);
+}
+
 export function hasMicrosoftCredentials() {
-  if (config.demoMode) return false;
   return Boolean(
     config.azure.tenantId &&
     config.azure.clientId &&
@@ -44,16 +55,28 @@ export function hasMicrosoftCredentials() {
 }
 
 export function hasFabricCredentials() {
-  if (config.demoMode) return false;
   return Boolean(config.fabric.workspaceId && config.fabric.lakehouseId);
 }
 
 export function hasWorkIQCredentials() {
-  if (config.demoMode) return false;
   return Boolean(config.workIQ.endpoint && config.workIQ.apiKey);
 }
 
-export function hasOpenAICredentials() {
-  if (config.demoMode) return false;
-  return Boolean(config.openai.apiKey);
+export function getIntegrationStatus() {
+  return {
+    microsoftGraph: hasMicrosoftCredentials() ? 'live' : 'mock',
+    fabricIQ: hasFabricCredentials() ? 'live' : 'mock',
+    workIQ: hasWorkIQCredentials() ? 'live' : 'mock',
+    openAI: hasOpenAICredentials() ? 'live' : 'mock',
+  };
 }
+
+export function hasOpenAICredentials() {
+  return Boolean(config.openai.apiKey || (config.azureOpenai.endpoint && config.azureOpenai.apiKey));
+}
+
+export function isHybridMode() {
+  return config.demoMode === true && hasOpenAICredentials() === true;
+}
+
+export const AI_MODE = hasOpenAICredentials() ? 'llm' : 'rules';

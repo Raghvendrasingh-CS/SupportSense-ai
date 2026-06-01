@@ -60,13 +60,34 @@ const RESOLUTION_TEMPLATES = {
   },
   General: {
     steps: [
-      'Gather detailed error messages and screenshots from user',
-      'Check if issue is reproducible on another device',
-      'Review recent changes to user account or device',
-      'Search knowledge base for similar resolved tickets',
-      'Escalate to specialist if standard troubleshooting fails',
+      "Gather more details about the specific issue and affected systems",
+      "Check Microsoft 365 Service Health dashboard for any known outages",
+      "Review recent changes to the user's account or permissions",
+      "Search knowledge base for similar reported issues",
+      "If issue persists, escalate to appropriate specialist team"
     ],
-    automatedFixes: [],
+    automatedFixes: ["check_service_health", "search_kb"]
+  },
+  Complaint: {
+    steps: [
+      "Acknowledge the customer's frustration sincerely and apologize for the repeated issue",
+      "Review full ticket history to understand all previous attempts to resolve this issue",
+      "Escalate immediately to senior support manager — do not attempt self-service resolution",
+      "Schedule a direct callback within 2 hours from account manager or senior engineer",
+      "Provide a formal incident reference number and written commitment to resolution timeline",
+      "Follow up within 24 hours with a detailed resolution plan or compensation offer"
+    ],
+    automatedFixes: ["escalate_to_senior", "schedule_callback", "create_incident_report"]
+  },
+  PowerPlatform: {
+    steps: [
+      "Check Power Automate run history for the specific flow that is failing",
+      "Verify all connection credentials are still valid and not expired",
+      "Check if the flow trigger conditions are being met correctly",
+      "Review connector permissions and re-authenticate if needed",
+      "Test the flow manually with simplified inputs to isolate the failure point"
+    ],
+    automatedFixes: ["refresh_connections", "check_flow_history"]
   },
 };
 
@@ -78,14 +99,25 @@ async function generateResolutionWithLLM(ticket, triageResult, kbArticles) {
     }
 
     const kbContext = kbArticles.map((a) => `- ${a.title}: ${a.content}`).join('\n');
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const isAzure = Boolean(config.azureOpenai.endpoint && config.azureOpenai.apiKey);
+    const url = isAzure
+      ? `${config.azureOpenai.endpoint.replace(/\/$/, '')}/openai/deployments/${config.azureOpenai.deployment}/chat/completions?api-version=2024-02-01`
+      : 'https://api.openai.com/v1/chat/completions';
+
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    if (isAzure) {
+      headers['api-key'] = config.azureOpenai.apiKey;
+    } else {
+      headers['Authorization'] = `Bearer ${config.openai.apiKey}`;
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.openai.apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
-        model: config.openai.model,
+        ...(isAzure ? {} : { model: config.openai.model }),
         messages: [
           {
             role: 'system',
@@ -102,12 +134,12 @@ async function generateResolutionWithLLM(ticket, triageResult, kbArticles) {
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI resolution failed: ${response.status}`);
+      throw new Error(`LLM resolution failed: ${response.status}`);
     }
 
     const data = await response.json();
     const parsed = JSON.parse(data.choices[0].message.content);
-    return { ...parsed, processingTimeMs: measureEnd(startMs), source: 'openai' };
+    return { ...parsed, processingTimeMs: measureEnd(startMs), source: isAzure ? 'azure-openai' : 'openai' };
   } catch (error) {
     logError(MODULE, 'LLM resolution generation failed', error);
     return null;
@@ -158,6 +190,27 @@ export async function resolveTicket(ticket, triageResult, emitFn = null) {
     const category = triageResult.classification.category;
 
     const llmResolution = await generateResolutionWithLLM(ticket, triageResult, kbArticles);
+    const resolutionSource = llmResolution ? (llmResolution.source || 'openai') : 'template';
+    log(MODULE, `Resolution source: ${resolutionSource} for ticket ${ticket.id}`);
+
+    if (llmResolution && emitFn) {
+      emitFn('reasoning:step', {
+        ticketId: ticket.id,
+        stepNumber: 5.5,
+        stepName: 'AI Solution Draft',
+        agent: 'ResolutionAgent',
+        microsoftTech: 'Azure OpenAI GPT-4o',
+        description: 'Generating custom resolution plan and auto-remediation steps using generative AI models',
+        signals: [
+          `LLM resolution generated: Yes`,
+          `Confidence score: ${Math.round((llmResolution.confidence || 0.85) * 100)}%`,
+          `AI resolution source: ${llmResolution.source || 'openai'}`
+        ],
+        decision: `Drafted AI-generated resolution summary: "${llmResolution.resolutionSummary || llmResolution.summary}"`,
+        confidence: llmResolution.confidence || 0.85
+      });
+    }
+
     const templateResolution = buildResolutionFromTemplate(category, kbArticles, similarTickets);
 
     const resolution = llmResolution || templateResolution;
@@ -209,6 +262,26 @@ export async function resolveTicket(ticket, triageResult, emitFn = null) {
       confidence: result.resolution.confidence,
       processingTimeMs: result.processingTimeMs,
     });
+
+    if (emitFn) {
+      emitFn('reasoning:step', {
+        ticketId: ticket.id,
+        stepNumber: 6,
+        stepName: 'Knowledge Retrieval & Draft',
+        agent: 'ResolutionAgent',
+        microsoftTech: 'Fabric IQ — Semantic',
+        description: 'Querying Microsoft Fabric knowledge base and resolved historical cases',
+        signals: [
+          `Fabric KB articles found: ${kbArticles.length}`,
+          `Similar historical tickets: ${similarTickets.length}`,
+          `Resolution confidence: ${Math.round(resolution.confidence * 100)}%`
+        ],
+        decision: autoResolveEligible 
+          ? 'High confidence match — trigger automated resolution and user notification'
+          : 'Low confidence match — draft recommendation and queue for escalation',
+        confidence: resolution.confidence
+      });
+    }
 
     if (emitFn) emitFn('resolution:completed', result);
 

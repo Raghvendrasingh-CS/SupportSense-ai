@@ -10,8 +10,13 @@ async function request(endpoint, options = {}) {
   const start = performance.now();
   try {
     log(`Request: ${options.method || 'GET'} ${endpoint}`);
+    const apiKey = import.meta.env.VITE_DEMO_API_KEY || 'demo-key';
     const response = await fetch(`${API_BASE}${endpoint}`, {
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        ...options.headers 
+      },
       ...options,
     });
 
@@ -42,4 +47,5 @@ export const api = {
   getAgentWorkload: () => request('/agents/workload'),
   getSLA: () => request('/sla'),
   getServiceHealth: () => request('/services/health'),
+  updateTicket: (id, data) => fetch(`/api/tickets/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
 };

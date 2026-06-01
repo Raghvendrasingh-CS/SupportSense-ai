@@ -7,6 +7,7 @@ const STATUS_STYLES = {
   escalated: 'bg-red-900/30 text-red-400 border border-red-500/20',
   resolved: 'bg-green-900/30 text-green-400 border border-green-500/20',
   pending_review: 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/20',
+  in_progress: 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20',
   error: 'bg-red-950/40 text-red-400 border border-red-900/20',
   open: 'bg-blue-950/30 text-blue-400 border border-blue-500/20',
 };

@@ -1,10 +1,21 @@
 // ticketMemory.js — Customer history and intelligence tracking system
 // Remembers every customer interaction to personalize responses and detect risk
 
-import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
+import { log, logError } from '../utils/logger.js';
+import { db } from '../db/store.js';
 
 const MODULE = 'TicketMemory';
-const memoryStore = new Map();
+
+function getMemoryEntries(email) {
+  const memory = db.getMemory();
+  return memory[email.toLowerCase()] || [];
+}
+
+function saveMemoryEntries(email, entries) {
+  const memory = db.getMemory();
+  memory[email.toLowerCase()] = entries;
+  db.saveMemory(memory);
+}
 
 /**
  * Retrieves the history of a customer, returning up to the last 3 entries newest first.
@@ -14,7 +25,7 @@ const memoryStore = new Map();
 export function getCustomerHistory(customerEmail) {
   try {
     const email = customerEmail.toLowerCase();
-    const entries = memoryStore.get(email) || [];
+    const entries = getMemoryEntries(email);
     const result = [...entries].reverse().slice(0, 3);
     log(MODULE, `History lookup for ${customerEmail}: ${result.length} previous tickets found`);
     return result;
@@ -31,7 +42,7 @@ export function getCustomerHistory(customerEmail) {
 export function addToMemory(customerEmail, ticketId, subject, category, priority, sentiment, resolution, summarySnippet) {
   try {
     const email = customerEmail.toLowerCase();
-    let entries = memoryStore.get(email) || [];
+    let entries = getMemoryEntries(email);
     
     const newEntry = {
       ticketId,
@@ -49,7 +60,7 @@ export function addToMemory(customerEmail, ticketId, subject, category, priority
       entries = entries.slice(-10);
     }
     
-    memoryStore.set(email, entries);
+    saveMemoryEntries(email, entries);
     log(MODULE, `Memory updated for ${customerEmail} — total tickets: ${entries.length}`);
   } catch (error) {
     logError(MODULE, `addToMemory failed for ${customerEmail}`, error);
@@ -64,7 +75,7 @@ export function addToMemory(customerEmail, ticketId, subject, category, priority
 export function getCustomerRiskProfile(customerEmail) {
   try {
     const email = customerEmail.toLowerCase();
-    const history = memoryStore.get(email) || [];
+    const history = getMemoryEntries(email);
     
     const isRepeatCustomer = history.length > 0;
     const isRepeatComplainer = history.filter(h => h.sentiment === 'angry' || h.sentiment === 'frustrated').length >= 2;
@@ -122,7 +133,7 @@ export function getCustomerRiskProfile(customerEmail) {
 export function getSentimentTrend(customerEmail) {
   try {
     const email = customerEmail.toLowerCase();
-    const history = memoryStore.get(email) || [];
+    const history = getMemoryEntries(email);
     const last3 = history.slice(-3);
     
     const sentimentValues = {
@@ -167,11 +178,14 @@ export function getSentimentTrend(customerEmail) {
  */
 export function getMemoryStats() {
   try {
+    const memory = db.getMemory();
+    const keys = Object.keys(memory);
     let repeatCustomers = 0;
     let highRiskCustomers = 0;
     let totalInteractions = 0;
     
-    for (const [email, history] of memoryStore.entries()) {
+    for (const email of keys) {
+      const history = memory[email] || [];
       totalInteractions += history.length;
       if (history.length > 1) {
         repeatCustomers++;
@@ -183,7 +197,7 @@ export function getMemoryStats() {
     }
     
     return {
-      totalCustomers: memoryStore.size,
+      totalCustomers: keys.length,
       repeatCustomers,
       highRiskCustomers,
       totalInteractions
@@ -205,6 +219,10 @@ export function getMemoryStats() {
 export function seedDemoMemory() {
   try {
     const email = 'sunita@logistics.co.in';
+    const email2 = 'david.park@retailchain.com';
+
+    // Clear existing memory first to start fresh
+    db.saveMemory({});
     
     // Entry 1 (oldest)
     addToMemory(
@@ -243,7 +261,7 @@ export function seedDemoMemory() {
     );
     
     // Adjust processedAt dates back in time to look realistic
-    const entries = memoryStore.get(email);
+    const entries = getMemoryEntries(email);
     if (entries && entries.length >= 3) {
       const now = new Date();
       
@@ -255,10 +273,13 @@ export function seedDemoMemory() {
       entries[entries.length - 2].processedAt = d45.toISOString();
       entries[entries.length - 1].processedAt = d15.toISOString();
       
-      memoryStore.set(email, entries);
+      saveMemoryEntries(email, entries);
     }
+
+    // Seed empty history for David
+    saveMemoryEntries(email2, []);
     
-    log(MODULE, `Demo memory seeded successfully for ${email}`);
+    log(MODULE, `Demo memory seeded successfully for ${email} and ${email2}`);
   } catch (error) {
     logError(MODULE, 'seedDemoMemory failed', error);
   }

@@ -21,7 +21,11 @@ export function useSocket() {
   useEffect(() => {
     try {
       console.log(`[${MODULE}] ${new Date().toISOString()} Connecting to ${SOCKET_URL}`);
-      const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+      const apiKey = import.meta.env.VITE_DEMO_API_KEY || 'demo-key';
+      const socket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        auth: { token: apiKey }
+      });
       socketRef.current = socket;
 
       socket.on('connect', () => {
@@ -41,6 +45,7 @@ export function useSocket() {
         'resolution:started', 'resolution:completed', 'resolution:error',
         'escalation:started', 'escalation:completed', 'escalation:error',
         'batch:started', 'batch:completed',
+        'reasoning:step', 'incident:detected'
       ];
 
       eventTypes.forEach((eventName) => {

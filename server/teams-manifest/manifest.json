@@ -1,0 +1,65 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "e4392a17-db56-4c49-8b0a-7b3b27b5ee6f",
+  "packageName": "com.supportsense.ai",
+  "developer": {
+    "name": "SupportSense AI",
+    "websiteUrl": "https://supportsense.ai",
+    "privacyUrl": "https://supportsense.ai/privacy",
+    "termsOfUseUrl": "https://supportsense.ai/terms"
+  },
+  "name": {
+    "short": "SupportSense AI",
+    "full": "SupportSense AI - M365 IT Agent"
+  },
+  "description": {
+    "short": "Enterprise IT support agent powered by Microsoft Graph, Fabric IQ and Work IQ",
+    "full": "SupportSense AI is an autonomous enterprise IT support agent that classifies tickets, checks customer history, and routes tickets to appropriate support agents using Work IQ and Fabric IQ."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#0ea5e9",
+  "configurableTabs": [],
+  "staticTabs": [],
+  "bots": [
+    {
+      "botId": "e4392a17-db56-4c49-8b0a-7b3b27b5ee6f",
+      "scopes": [
+        "personal",
+        "team",
+        "groupchat"
+      ],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "composeExtensions": [
+    {
+      "botId": "e4392a17-db56-4c49-8b0a-7b3b27b5ee6f",
+      "commands": [
+        {
+          "id": "createTicket",
+          "type": "action",
+          "title": "Submit Support Ticket",
+          "description": "Submit a support ticket to SupportSense AI",
+          "context": [
+            "compose",
+            "commandBox"
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "supportsense.ai",
+    "localhost"
+  ]
+}

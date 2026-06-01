@@ -1,6 +1,7 @@
 // Microsoft Graph API client with token acquisition and mock fallback.
 import { config, hasMicrosoftCredentials } from '../config/env.js';
 import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
+import { withRetry } from '../utils/retry.js';
 
 const MODULE = 'MicrosoftGraph';
 
@@ -27,6 +28,7 @@ async function acquireToken() {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -93,6 +95,7 @@ export async function fetchUserProfile(userId) {
 
     const response = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -130,6 +133,7 @@ export async function fetchSupportTickets(filter = {}) {
 
     const response = await fetch('https://graph.microsoft.com/v1.0/servicePrincipals', {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -164,6 +168,7 @@ export async function sendNotification(userId, message) {
           toRecipients: [{ emailAddress: { address: `${userId}@contoso.com` } }],
         },
       }),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -198,6 +203,7 @@ export async function getServiceHealth() {
 
     const response = await fetch('https://graph.microsoft.com/v1.0/admin/serviceAnnouncement/healthOverviews', {
       headers: { Authorization: `Bearer ${(await getToken()).token}` },
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -205,9 +211,19 @@ export async function getServiceHealth() {
     }
 
     const data = await response.json();
+    const statusMap = {
+      serviceOperational: 'healthy',
+      serviceDegraded: 'degraded',
+      serviceInterruption: 'interrupted',
+      investigating: 'degraded',
+      restoringService: 'degraded',
+      verifyingService: 'degraded',
+      resolved: 'healthy',
+      mitigated: 'healthy',
+    };
     const services = (data.value || []).map((s) => ({
-      name: s.service,
-      status: s.status,
+      name: s.service || s.id || 'Unknown Service',
+      status: statusMap[s.status] || s.status || 'healthy',
       incidents: 0,
     }));
 

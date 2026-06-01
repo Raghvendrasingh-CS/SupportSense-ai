@@ -10,6 +10,9 @@ import TicketList from './components/TicketList';
 import TicketDetail from './components/TicketDetail';
 import NewTicketForm from './components/NewTicketForm';
 import PipelineVisualizer from './components/PipelineVisualizer';
+import IncidentAlert from './components/IncidentAlert';
+import MemoryPanel from './components/MemoryPanel';
+import DemoGuide from './components/DemoGuide';
 
 const MODULE = 'App';
 
@@ -23,6 +26,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [processingTicketId, setProcessingTicketId] = useState(null);
+  const [incidents, setIncidents] = useState([]);
 
   const { connected, events, latestEvent, clearEvents } = useSocket();
 
@@ -58,6 +63,32 @@ export default function App() {
     init();
   }, [refreshData]);
 
+  // Detect incident patterns — multiple tickets in same category within 30 minutes
+  useEffect(() => {
+    if (tickets.length < 2) return;
+    const windowMs = 30 * 60 * 1000;
+    const now = Date.now();
+    const recent = tickets.filter(t => {
+      const created = t.createdAt ? new Date(t.createdAt).getTime() : 0;
+      return now - created < windowMs;
+    });
+    const catCounts = {};
+    recent.forEach(t => {
+      const cat = t.category || t.pipeline?.triage?.classification?.category || 'General';
+      if (!catCounts[cat]) catCounts[cat] = [];
+      catCounts[cat].push(t.id);
+    });
+    const detected = Object.entries(catCounts)
+      .filter(([, ids]) => ids.length >= 2)
+      .map(([category, ids]) => ({
+        category,
+        ticketCount: ids.length,
+        timeWindowMinutes: 30,
+        relatedTickets: ids,
+      }));
+    setIncidents(detected);
+  }, [tickets]);
+
   useEffect(() => {
     if (latestEvent?.event === 'pipeline:completed' || latestEvent?.event === 'batch:completed') {
       refreshData();
@@ -87,17 +118,25 @@ export default function App() {
     try {
       setLoading(true);
       setProcessing(true);
+      setProcessingTicketId('temp-new-ticket');
       console.log(`[${MODULE}] ${new Date().toISOString()} Creating new ticket`);
       const result = await api.createTicket(data);
       setSelectedId(result.ticketId);
+      setActiveTab('tickets');
+      await refreshData();
     } catch (error) {
       console.error(`[${MODULE}] ${new Date().toISOString()} ERROR creating ticket:`, error);
       setLoading(false);
       setProcessing(false);
+    } finally {
+      setProcessingTicketId(null);
     }
   };
 
   const selectedTicket = tickets.find((t) => t.id === selectedId) || null;
+
+  const getAllTickets = () => tickets || [];
+  const memoryStats = analytics?.memoryStats || {};
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard' },
@@ -115,6 +154,7 @@ export default function App() {
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <IncidentAlert incidents={incidents} />
         <PipelineVisualizer latestEvent={latestEvent} processing={processing} />
 
         <div className="mt-6 border-b border-[#334155]">
@@ -136,15 +176,24 @@ export default function App() {
         </div>
 
         {activeTab === 'dashboard' && (
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <AnalyticsPanel analytics={analytics} serviceHealth={serviceHealth} />
+          <>
+            {tickets.length === 0 && <DemoGuide />}
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <AnalyticsPanel
+                  analytics={analytics}
+                  serviceHealth={serviceHealth}
+                  tickets={getAllTickets()}
+                  memoryStats={memoryStats}
+                />
+              </div>
+              <div className="space-y-6">
+                <MemoryPanel tickets={tickets} analytics={analytics} />
+                <EventFeed events={events} onClear={clearEvents} />
+                <NewTicketForm onSubmit={handleNewTicket} loading={loading} />
+              </div>
             </div>
-            <div className="space-y-6">
-              <EventFeed events={events} onClear={clearEvents} />
-              <NewTicketForm onSubmit={handleNewTicket} loading={loading} />
-            </div>
-          </div>
+          </>
         )}
 
         {activeTab === 'tickets' && (
@@ -154,10 +203,11 @@ export default function App() {
                 tickets={tickets}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
+                processingTicketId={processingTicketId}
               />
             </div>
             <div className="lg:col-span-2">
-              <TicketDetail ticket={selectedTicket} customerHistory={selectedTicket?.customerHistory || selectedTicket?.pipeline?.customerHistory || []} riskProfile={selectedTicket?.riskProfile || selectedTicket?.pipeline?.riskProfile || null} />
+              <TicketDetail ticket={selectedTicket} customerHistory={selectedTicket?.customerHistory || selectedTicket?.pipeline?.customerHistory || []} riskProfile={selectedTicket?.riskProfile || selectedTicket?.pipeline?.riskProfile || null} onRefresh={refreshData} />
             </div>
           </div>
         )}

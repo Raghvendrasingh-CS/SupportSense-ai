@@ -3,6 +3,7 @@ import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
 import { findBestAgent, getWorkloadInsights } from '../services/workIQ.js';
 import { sendNotification } from '../services/microsoftGraph.js';
 import { logTicketEvent } from '../services/fabricIQ.js';
+import { sendAdaptiveCardToTeams } from '../services/teamsWebhook.js';
 
 const MODULE = 'EscalationAgent';
 
@@ -66,6 +67,135 @@ function calculateSLA(priority) {
   };
 }
 
+function generateAdaptiveCard(ticket, triageResult, agent, sla) {
+  return {
+    "type": "AdaptiveCard",
+    "version": "1.4",
+    "body": [
+      {
+        "type": "Container",
+        "style": "emphasis",
+        "bleed": true,
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": `⚠️ Escalation Tier: ${agent.tier}`,
+            "weight": "Bolder",
+            "color": triageResult.classification.priority === 'critical' ? "Attention" : "Warning",
+            "size": "Medium"
+          },
+          {
+            "type": "TextBlock",
+            "text": ticket.subject,
+            "weight": "Bolder",
+            "size": "Large",
+            "wrap": true
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "items": [
+          {
+            "type": "FactSet",
+            "facts": [
+              {
+                "title": "Ticket ID:",
+                "value": ticket.id
+              },
+              {
+                "title": "Category:",
+                "value": triageResult.classification.category
+              },
+              {
+                "title": "Priority:",
+                "value": triageResult.classification.priority.toUpperCase()
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TextBlock",
+        "text": "Assigned Specialist Representative",
+        "weight": "Bolder",
+        "separator": true,
+        "spacing": "Medium"
+      },
+      {
+        "type": "ColumnSet",
+        "columns": [
+          {
+            "type": "Column",
+            "width": "auto",
+            "items": [
+              {
+                "type": "Image",
+                "url": `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name)}&background=0ea5e9&color=fff&bold=true`,
+                "size": "Small",
+                "style": "Person"
+              }
+            ]
+          },
+          {
+            "type": "Column",
+            "width": "stretch",
+            "items": [
+              {
+                "type": "TextBlock",
+                "text": agent.name,
+                "weight": "Bolder",
+                "wrap": true
+              },
+              {
+                "type": "TextBlock",
+                "text": `Match Score: ${Math.round(agent.matchScore * 100)}% | Tier: ${agent.tier}`,
+                "isSubdued": true,
+                "spacing": "None",
+                "wrap": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "separator": true,
+        "spacing": "Medium",
+        "items": [
+          {
+            "type": "TextBlock",
+            "text": `SLA Response Deadline: ${new Date(sla.firstResponseDeadline).toLocaleTimeString()}`,
+            "weight": "Bolder",
+            "color": "Attention"
+          },
+          {
+            "type": "TextBlock",
+            "text": `SLA Resolution Target: ${sla.resolutionTargetHours} hrs`,
+            "isSubdued": true,
+            "spacing": "None"
+          }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "type": "Action.Submit",
+        "title": "Accept Assignment",
+        "data": {
+          "action": "accept",
+          "ticketId": ticket.id
+        }
+      },
+      {
+        "type": "Action.OpenUrl",
+        "title": "View Request Detail",
+        "url": `http://localhost:3000/tickets/${ticket.id}`
+      }
+    ]
+  };
+}
+
 export async function escalateTicket(ticket, triageResult, resolutionResult, emitFn = null) {
   const pipelineStart = measureStart();
   try {
@@ -95,7 +225,23 @@ export async function escalateTicket(ticket, triageResult, resolutionResult, emi
       };
 
       log(MODULE, `No escalation needed for ${ticket.id}`);
-      if (emitFn) emitFn('escalation:completed', noEscalationResult);
+      if (emitFn) {
+        emitFn('reasoning:step', {
+          ticketId: ticket.id,
+          stepNumber: 7,
+          stepName: 'Enterprise Routing & SLA',
+          agent: 'EscalationAgent',
+          microsoftTech: 'Entra ID & M365 Graph',
+          description: 'Automated resolution verified — no human escalation required',
+          signals: [
+            'No human escalation needed',
+            'SLA compliance checked'
+          ],
+          decision: 'Ticket resolved automatically by ResolutionAgent',
+          confidence: 1.0
+        });
+        emitFn('escalation:completed', noEscalationResult);
+      }
       return noEscalationResult;
     }
 
@@ -133,6 +279,10 @@ export async function escalateTicket(ticket, triageResult, resolutionResult, emi
     });
     log(MODULE, 'Escalation event logged', { processingTimeMs: measureEnd(eventStart) });
 
+    const adaptiveCard = generateAdaptiveCard(ticket, triageResult, agent, sla);
+    const teamsResult = await sendAdaptiveCardToTeams(adaptiveCard, `Escalation: ${ticket.subject}`);
+    log(MODULE, 'Teams notification result', teamsResult);
+
     const result = {
       agent: 'EscalationAgent',
       ticketId: ticket.id,
@@ -156,11 +306,13 @@ export async function escalateTicket(ticket, triageResult, resolutionResult, emi
       notifications: {
         agent: agentNotification,
         requester: requesterNotification,
+        teams: teamsResult,
       },
       workloadInsights: {
         availableAgents: workloadInsights.availableAgents,
         avgWorkload: workloadInsights.avgWorkload,
       },
+      adaptiveCard,
       processingTimeMs: measureEnd(pipelineStart),
       timestamp: new Date().toISOString(),
     };
@@ -171,7 +323,24 @@ export async function escalateTicket(ticket, triageResult, resolutionResult, emi
       processingTimeMs: result.processingTimeMs,
     });
 
-    if (emitFn) emitFn('escalation:completed', result);
+    if (emitFn) {
+      emitFn('reasoning:step', {
+        ticketId: ticket.id,
+        stepNumber: 7,
+        stepName: 'Enterprise Routing & SLA',
+        agent: 'EscalationAgent',
+        microsoftTech: 'Entra ID & M365 Graph',
+        description: 'Routing to available expert and generating response target SLAs',
+        signals: [
+          `Assigned agent: ${agent.name} (Tier: ${agent.tier})`,
+          `SLA Response Target: ${sla.firstResponseTargetMinutes} min`,
+          `Skill match score: ${Math.round(agent.matchScore * 100)}%`
+        ],
+        decision: `Dispatched Adaptive Card notification to ${agent.name} with SLA deadline ${new Date(sla.firstResponseDeadline).toLocaleTimeString()}`,
+        confidence: agent.matchScore
+      });
+      emitFn('escalation:completed', result);
+    }
 
     return result;
   } catch (error) {

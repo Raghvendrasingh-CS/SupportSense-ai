@@ -92,14 +92,25 @@ async function analyzeWithLLM(ticket) {
       return null;
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const isAzure = Boolean(config.azureOpenai.endpoint && config.azureOpenai.apiKey);
+    const url = isAzure
+      ? `${config.azureOpenai.endpoint.replace(/\/$/, '')}/openai/deployments/${config.azureOpenai.deployment}/chat/completions?api-version=2024-02-01`
+      : 'https://api.openai.com/v1/chat/completions';
+
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    if (isAzure) {
+      headers['api-key'] = config.azureOpenai.apiKey;
+    } else {
+      headers['Authorization'] = `Bearer ${config.openai.apiKey}`;
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.openai.apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
-        model: config.openai.model,
+        ...(isAzure ? {} : { model: config.openai.model }),
         messages: [
           { role: 'system', content: 'You are a support ticket triage assistant. Respond with JSON: { category, priority, sentiment, summary }' },
           { role: 'user', content: `Subject: ${ticket.subject}\nDescription: ${ticket.description}` },
@@ -110,12 +121,12 @@ async function analyzeWithLLM(ticket) {
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API failed: ${response.status}`);
+      throw new Error(`LLM call failed: ${response.status}`);
     }
 
     const data = await response.json();
     const parsed = JSON.parse(data.choices[0].message.content);
-    return { ...parsed, processingTimeMs: measureEnd(startMs), source: 'openai' };
+    return { ...parsed, processingTimeMs: measureEnd(startMs), source: isAzure ? 'azure-openai' : 'openai' };
   } catch (error) {
     logError(MODULE, 'LLM analysis failed — using rule-based fallback', error);
     return null;
@@ -193,6 +204,39 @@ export async function triageTicket(ticket, emitFn = null) {
       priority: finalPriority,
       processingTimeMs: result.processingTimeMs,
     });
+
+    if (emitFn) {
+      emitFn('reasoning:step', {
+        ticketId: ticket.id,
+        stepNumber: 4,
+        stepName: 'Intent Classification',
+        agent: 'TriageAgent',
+        microsoftTech: 'Work IQ — Foundry',
+        description: `Analysing ticket semantics to determine M365 category: ${finalCategory}`,
+        signals: [
+          `Keyword matches: ${categoryResult.confidence}`,
+          `Azure AI Language Sentiment: ${result.classification.sentiment}`,
+          `Subject text parsed: "${ticket.subject}"`
+        ],
+        decision: `Ticket categorized as "${finalCategory}" with confidence ${Math.round(categoryResult.confidence * 100)}%`,
+        confidence: categoryResult.confidence
+      });
+
+      emitFn('reasoning:step', {
+        ticketId: ticket.id,
+        stepNumber: 5,
+        stepName: 'Priority & Skills Assignment',
+        agent: 'TriageAgent',
+        description: `Determined urgency and required skillset for ticket: ${finalPriority}`,
+        signals: [
+          `Urgency signals detected: ${finalPriority}`,
+          `Customer workload check: ${employeeContext?.currentWorkload || 'normal'}`,
+          `Required skills: ${extractRequiredSkills(finalCategory).join(', ')}`
+        ],
+        decision: `Assigned priority "${finalPriority}" and queued for ResolutionAgent`,
+        confidence: priorityResult.confidence
+      });
+    }
 
     if (emitFn) emitFn('triage:completed', result);
 

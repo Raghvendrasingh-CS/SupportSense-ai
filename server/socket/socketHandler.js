@@ -1,11 +1,29 @@
 // Socket.io event handler — broadcasts all pipeline state changes to connected clients.
 import { log, logError } from '../utils/logger.js';
+import { config } from '../config/env.js';
 
 const MODULE = 'SocketHandler';
 
 export function setupSocketHandlers(io) {
   try {
     log(MODULE, 'Initializing Socket.io handlers');
+
+    io.use((socket, next) => {
+      if (config.demoMode) return next();
+
+      const token = socket.handshake.auth?.token;
+      const validToken = process.env.SOCKET_API_KEY || process.env.DEMO_API_KEY || 'demo-key';
+
+      if (!token) {
+        log(MODULE, `Connection rejected for ${socket.id}: No token provided`);
+        return next(new Error('Authentication required: no token provided'));
+      }
+      if (token !== validToken) {
+        log(MODULE, `Connection rejected for ${socket.id}: Invalid token`);
+        return next(new Error('Authentication failed: invalid token'));
+      }
+      next();
+    });
 
     io.on('connection', (socket) => {
       log(MODULE, `Client connected: ${socket.id}`);

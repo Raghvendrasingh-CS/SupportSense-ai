@@ -1,16 +1,22 @@
 // ReasoningChain — Displays transparent step-by-step agent decision explanation
 // Makes AI reasoning visible — directly targets Reasoning and Multi-step Thinking judging category
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 /**
  * Collapsible React component that displays agent pipeline reasoning steps in a vertical timeline.
  * 
  * @param {object} props.reasoning - Reasoning data containing steps, summary, keyDecisionPoint, totalSteps
  */
-export default function ReasoningChain({ reasoning }) {
+export default function ReasoningChain({ reasoning, startExpanded = false }) {
   try {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(startExpanded);
+
+    useEffect(() => {
+      if (startExpanded) {
+        setIsExpanded(true);
+      }
+    }, [startExpanded]);
 
     // If reasoning prop is null or undefined or has no steps return null — render nothing
     if (!reasoning || !reasoning.steps || reasoning.steps.length === 0) {

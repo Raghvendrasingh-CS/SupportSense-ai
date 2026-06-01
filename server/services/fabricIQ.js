@@ -1,6 +1,7 @@
 // Microsoft Fabric IQ integration for ticket analytics and knowledge retrieval.
 import { config, hasFabricCredentials } from '../config/env.js';
 import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
+import { withRetry } from '../utils/retry.js';
 
 const MODULE = 'FabricIQ';
 
@@ -34,7 +35,7 @@ const MOCK_ANALYTICS = {
   avgResolutionHours: 3.8,
 };
 
-async function queryFabricLakehouse(sql) {
+async function queryFabricLakehouse(sql, params = []) {
   const startMs = measureStart();
   try {
     if (!hasFabricCredentials()) {
@@ -48,7 +49,8 @@ async function queryFabricLakehouse(sql) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.FABRIC_ACCESS_TOKEN || ''}`,
       },
-      body: JSON.stringify({ query: sql }),
+      body: JSON.stringify({ query: sql, parameters: params }),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -90,8 +92,8 @@ export async function searchKnowledgeBase(query, limit = 5) {
       return { results, processingTimeMs: measureEnd(startMs), source: 'mock' };
     }
 
-    const sql = `SELECT TOP ${limit} id, title, category, content, relevance_score FROM knowledge_base WHERE CONTAINS(content, '${query.replace(/'/g, "''")}') ORDER BY relevance_score DESC`;
-    const { data, processingTimeMs } = await queryFabricLakehouse(sql);
+    const sql = 'SELECT TOP ? id, title, category, content, relevance_score FROM knowledge_base WHERE CONTAINS(content, ?) ORDER BY relevance_score DESC';
+    const { data, processingTimeMs } = await queryFabricLakehouse(sql, [limit, query]);
     return { results: data.rows || MOCK_KNOWLEDGE_BASE.slice(0, limit), processingTimeMs, source: 'fabric' };
   } catch (error) {
     logError(MODULE, 'searchKnowledgeBase failed — mock fallback', error);
@@ -142,8 +144,8 @@ export async function logTicketEvent(ticketId, eventType, metadata = {}) {
       };
     }
 
-    const sql = `INSERT INTO ticket_events (ticket_id, event_type, metadata, created_at) VALUES ('${ticketId}', '${eventType}', '${JSON.stringify(metadata)}', NOW())`;
-    await queryFabricLakehouse(sql);
+    const sql = 'INSERT INTO ticket_events (ticket_id, event_type, metadata, created_at) VALUES (?, ?, ?, NOW())';
+    await queryFabricLakehouse(sql, [ticketId, eventType, JSON.stringify(metadata)]);
     return {
       eventId: `fabric-event-${Date.now()}`,
       ticketId,
@@ -188,8 +190,8 @@ export async function getSimilarTickets(description, limit = 3) {
       return { similarTickets: filtered.slice(0, limit), processingTimeMs: measureEnd(startMs), source: 'mock' };
     }
 
-    const sql = `SELECT TOP ${limit} id, subject, resolution, resolution_time_hours FROM resolved_tickets ORDER BY similarity DESC`;
-    const { data, processingTimeMs } = await queryFabricLakehouse(sql);
+    const sql = 'SELECT TOP ? id, subject, resolution, resolution_time_hours FROM resolved_tickets ORDER BY similarity DESC';
+    const { data, processingTimeMs } = await queryFabricLakehouse(sql, [limit]);
     return { similarTickets: data.rows || mockSimilar, processingTimeMs, source: 'fabric' };
   } catch (error) {
     logError(MODULE, 'getSimilarTickets failed — mock fallback', error);

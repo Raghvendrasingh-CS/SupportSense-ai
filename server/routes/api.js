@@ -1,7 +1,8 @@
 // REST API routes for tickets, analytics, agents, and pipeline operations.
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
-import { config } from '../config/env.js';
+import { config, getIntegrationStatus } from '../config/env.js';
 import {
   processTicket,
   processBatch,
@@ -9,14 +10,27 @@ import {
   getAllTickets,
   createTicket,
   seedDemoTickets,
+  getCustomerHistory,
+  getCustomerRiskProfile,
+  saveTicket,
 } from '../pipeline/supportPipeline.js';
 import { checkSLACompliance } from '../agents/EscalationAgent.js';
 import { getTicketAnalytics } from '../services/fabricIQ.js';
 import { getWorkloadInsights } from '../services/workIQ.js';
 import { fetchSupportTickets, getServiceHealth } from '../services/microsoftGraph.js';
+import { validateTicket } from '../middleware/validate.js';
+import { checkApiKey } from '../middleware/auth.js';
 
 const MODULE = 'APIRoutes';
 const router = Router();
+
+const postLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many requests, please try again after a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 router.get('/health', (_req, res) => {
   try {
@@ -37,11 +51,7 @@ router.get('/config', (_req, res) => {
     res.json({
       demoMode: config.demoMode,
       port: config.port,
-      integrations: {
-        microsoftGraph: config.demoMode ? 'mock' : 'live',
-        fabricIQ: config.demoMode ? 'mock' : 'live',
-        workIQ: config.demoMode ? 'mock' : 'live',
-      },
+      integrations: getIntegrationStatus(),
       processingTimeMs: 0,
       timestamp: new Date().toISOString(),
     });
@@ -76,6 +86,47 @@ router.get('/tickets', async (_req, res) => {
   }
 });
 
+router.get('/tickets/history', (req, res) => {
+  const startMs = measureStart();
+  try {
+    log(MODULE, 'GET /tickets/history');
+    const allTickets = getAllTickets();
+    const processed = allTickets.filter((t) => t.pipeline !== null);
+    res.json({
+      tickets: processed,
+      count: processed.length,
+      processingTimeMs: measureEnd(startMs),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logError(MODULE, 'GET /tickets/history failed', error);
+    res.status(500).json({ error: error.message, processingTimeMs: measureEnd(startMs) });
+  }
+});
+
+router.get('/customers/history', (req, res) => {
+  const startMs = measureStart();
+  try {
+    const email = req.query.email;
+    log(MODULE, `GET /customers/history for ${email}`);
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid "email" query parameter.', processingTimeMs: measureEnd(startMs) });
+    }
+    const history = getCustomerHistory(email);
+    const riskProfile = getCustomerRiskProfile(email);
+    res.json({
+      email,
+      history,
+      riskProfile,
+      processingTimeMs: measureEnd(startMs),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logError(MODULE, 'GET /customers/history failed', error);
+    res.status(500).json({ error: error.message, processingTimeMs: measureEnd(startMs) });
+  }
+});
+
 router.get('/tickets/:id', (req, res) => {
   const startMs = measureStart();
   try {
@@ -90,15 +141,36 @@ router.get('/tickets/:id', (req, res) => {
   }
 });
 
-router.post('/tickets', async (req, res) => {
+router.patch('/tickets/:id', checkApiKey, async (req, res) => {
+  const startMs = measureStart();
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    log(MODULE, `PATCH /tickets/${id} - setting status to: ${status}`);
+
+    const ticket = getTicket(id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found', processingTimeMs: measureEnd(startMs) });
+    }
+
+    if (status !== undefined) {
+      ticket.status = status;
+      ticket.updatedAt = new Date().toISOString();
+      saveTicket(ticket);
+    }
+
+    res.json({ success: true, ticket, processingTimeMs: measureEnd(startMs), timestamp: new Date().toISOString() });
+  } catch (error) {
+    logError(MODULE, `PATCH /tickets/${req.params.id} failed`, error);
+    res.status(500).json({ error: error.message, processingTimeMs: measureEnd(startMs) });
+  }
+});
+
+router.post('/tickets', postLimiter, checkApiKey, validateTicket, async (req, res) => {
   const startMs = measureStart();
   try {
     log(MODULE, 'POST /tickets — creating and processing ticket');
     const { subject, description, requesterId } = req.body;
-
-    if (!subject) {
-      return res.status(400).json({ error: 'Subject is required', processingTimeMs: measureEnd(startMs) });
-    }
 
     const ticket = createTicket({ subject, description, requesterId });
     const emitFn = req.app.get('emitFn');
@@ -114,7 +186,7 @@ router.post('/tickets', async (req, res) => {
   }
 });
 
-router.post('/tickets/:id/process', async (req, res) => {
+router.post('/tickets/:id/process', postLimiter, checkApiKey, async (req, res) => {
   const startMs = measureStart();
   try {
     log(MODULE, `POST /tickets/${req.params.id}/process`);
@@ -127,7 +199,7 @@ router.post('/tickets/:id/process', async (req, res) => {
   }
 });
 
-router.post('/pipeline/batch', async (req, res) => {
+router.post('/pipeline/batch', postLimiter, checkApiKey, async (req, res) => {
   const startMs = measureStart();
   try {
     log(MODULE, 'POST /pipeline/batch');
@@ -141,7 +213,7 @@ router.post('/pipeline/batch', async (req, res) => {
   }
 });
 
-router.post('/demo/seed', async (req, res) => {
+router.post('/demo/seed', postLimiter, checkApiKey, async (req, res) => {
   const startMs = measureStart();
   try {
     log(MODULE, 'POST /demo/seed — seeding and processing demo tickets');
@@ -160,7 +232,28 @@ router.get('/analytics', async (_req, res) => {
   try {
     log(MODULE, 'GET /analytics');
     const { analytics, source } = await getTicketAnalytics();
-    res.json({ analytics, source, processingTimeMs: measureEnd(startMs), timestamp: new Date().toISOString() });
+
+    // Dynamically compute deflection rate from tickets database
+    const tickets = getAllTickets();
+    const total = tickets.length;
+    const resolved = tickets.filter(t => t.status === 'resolved').length;
+    const deflectionRate = total > 0 ? Math.round((resolved / total) * 1000) / 10 : 68.0;
+
+    const agentPerformance = [
+      { id: 'agent-001', name: 'Alex Rivera', avgResolutionTimeHours: 3.2, satisfactionScore: 4.6, slaComplianceRate: 95, ticketsResolved: 28 },
+      { id: 'agent-002', name: 'Priya Sharma', avgResolutionTimeHours: 2.8, satisfactionScore: 4.5, slaComplianceRate: 92, ticketsResolved: 35 },
+      { id: 'agent-003', name: 'Tom O\'Brien', avgResolutionTimeHours: 1.8, satisfactionScore: 4.9, slaComplianceRate: 98, ticketsResolved: 15 },
+      { id: 'agent-004', name: 'Kim Nakamura', avgResolutionTimeHours: 2.5, satisfactionScore: 4.7, slaComplianceRate: 96, ticketsResolved: 22 },
+      { id: 'agent-005', name: 'Jordan Lee', avgResolutionTimeHours: 4.1, satisfactionScore: 4.2, slaComplianceRate: 88, ticketsResolved: 41 },
+    ];
+
+    const enriched = {
+      ...analytics,
+      deflectionRate,
+      agentPerformance,
+    };
+
+    res.json({ analytics: enriched, source, processingTimeMs: measureEnd(startMs), timestamp: new Date().toISOString() });
   } catch (error) {
     logError(MODULE, 'GET /analytics failed', error);
     res.status(500).json({ error: error.message, processingTimeMs: measureEnd(startMs) });

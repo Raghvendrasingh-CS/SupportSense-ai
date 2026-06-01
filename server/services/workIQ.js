@@ -1,6 +1,7 @@
 // Work IQ integration for employee context, skills, and workload intelligence.
 import { config, hasWorkIQCredentials } from '../config/env.js';
 import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
+import { withRetry } from '../utils/retry.js';
 
 const MODULE = 'WorkIQ';
 
@@ -65,6 +66,7 @@ async function callWorkIQAPI(endpoint, payload) {
         'Ocp-Apim-Subscription-Key': config.workIQ.apiKey,
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {

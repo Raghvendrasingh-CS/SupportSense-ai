@@ -6,6 +6,7 @@ const DEMO_SUBJECTS = [
   { subject: 'Outlook calendar not syncing with mobile', description: 'Calendar events on desktop are not appearing on iPhone Outlook app.', requesterId: 'user-002' },
   { subject: 'Teams audio cutting out during calls', description: 'Audio drops every few minutes during Teams video calls. Blocking client meetings.', requesterId: 'user-003' },
   { subject: 'VPN connection failing after password reset', description: 'Reset my password yesterday, now VPN will not connect. Error code 809.', requesterId: 'user-001' },
+  { subject: 'Data export still broken — this is my 5th complaint', description: 'I have reported this issue multiple times and it is still not fixed. This is completely unacceptable. I am considering legal action.', requesterId: 'sunita@logistics.co.in' },
 ];
 
 export default function NewTicketForm({ onSubmit, loading }) {
@@ -34,7 +35,7 @@ export default function NewTicketForm({ onSubmit, loading }) {
 
   return (
     <div className="bg-[#1e293b] rounded-xl shadow-sm border border-[#334155] p-6">
-      <h3 className="text-sm font-semibold text-[#e2e8f0] mb-4">Submit New Ticket</h3>
+      <h3 className="text-sm font-semibold text-[#e2e8f0] mb-4">New Support Request</h3>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -70,6 +71,7 @@ export default function NewTicketForm({ onSubmit, loading }) {
             <option value="user-001" className="bg-[#1e293b]">Sarah Chen (Engineering)</option>
             <option value="user-002" className="bg-[#1e293b]">Marcus Webb (Finance)</option>
             <option value="user-003" className="bg-[#1e293b]">Elena Rodriguez (Operations)</option>
+            <option value="sunita@logistics.co.in" className="bg-[#1e293b]">Sunita Reddy (Repeat Customer ⚠️)</option>
           </select>
         </div>
 
@@ -78,12 +80,12 @@ export default function NewTicketForm({ onSubmit, loading }) {
           disabled={loading || !subject.trim()}
           className="w-full py-2.5 bg-[#0ea5e9] text-white text-sm font-medium rounded-lg hover:bg-[#0284c7] transition-colors disabled:opacity-50"
         >
-          {loading ? 'Processing Pipeline...' : 'Submit & Process'}
+          {loading ? 'Processing ticket...' : 'Submit Ticket'}
         </button>
       </form>
 
       <div className="mt-4 pt-4 border-t border-[#334155]">
-        <p className="text-xs text-[#94a3b8] mb-2">Quick fill:</p>
+        <p className="text-xs text-[#94a3b8] mb-2">Common issues:</p>
         <div className="flex flex-wrap gap-2">
           {DEMO_SUBJECTS.map((demo, i) => (
             <button
@@ -92,7 +94,7 @@ export default function NewTicketForm({ onSubmit, loading }) {
               onClick={() => fillDemo(demo)}
               className="text-xs px-2 py-1 bg-[#263548] text-[#cbd5e1] rounded hover:bg-[#334155] transition-colors"
             >
-              {demo.subject.slice(0, 30)}...
+              {demo.subject.length > 28 ? demo.subject.slice(0, demo.subject.lastIndexOf(' ', 28)) + '...' : demo.subject}
             </button>
           ))}
         </div>

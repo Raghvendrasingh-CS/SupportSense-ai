@@ -1,0 +1,239 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SupportSense AI API",
+    "version": "1.0.0",
+    "description": "API for SupportSense AI, an autonomous support triage agent pipeline."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001"
+    }
+  ],
+  "paths": {
+    "/api/tickets": {
+      "post": {
+        "operationId": "processTicket",
+        "summary": "Process a support ticket through the agent pipeline",
+        "description": "Accepts a ticket subject, description, and requester, then runs it through Triage, Resolution, and Escalation agents.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "requesterId"
+                ],
+                "properties": {
+                  "subject": {
+                    "type": "string",
+                    "description": "The subject of the support ticket."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional detailed description of the issue."
+                  },
+                  "requesterId": {
+                    "type": "string",
+                    "description": "Email or identifier of the user submitting the ticket."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ticket processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ticketId": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "triage": {
+                      "type": "object"
+                    },
+                    "resolution": {
+                      "type": "object"
+                    },
+                    "escalation": {
+                      "type": "object"
+                    },
+                    "reasoning": {
+                      "type": "object"
+                    },
+                    "totalProcessingTimeMs": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data"
+          },
+          "500": {
+            "description": "Server error during ticket processing"
+          }
+        }
+      }
+    },
+    "/api/tickets/history": {
+      "get": {
+        "operationId": "getTicketHistory",
+        "summary": "Get all processed tickets history",
+        "description": "Retrieves all support tickets that have completed processing in the agent pipeline.",
+        "responses": {
+          "200": {
+            "description": "Successful retrieval of ticket history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tickets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/customers/history": {
+      "get": {
+        "operationId": "getCustomerHistory",
+        "summary": "Get customer support history and risk profile",
+        "description": "Retrieves the previous tickets history and calculated risk profile for a customer by email address.",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "description": "The customer email address to retrieve history for.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful retrieval of customer history and risk profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "riskProfile": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing email parameter"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/analytics": {
+      "get": {
+        "operationId": "getAnalytics",
+        "summary": "Get support operations analytics",
+        "description": "Returns deflection rate, SLA compliance, and agent workload/performance statistics.",
+        "responses": {
+          "200": {
+            "description": "Successful retrieval of analytics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "analytics": {
+                      "type": "object",
+                      "properties": {
+                        "ticketVolumeTrend": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "categoryBreakdown": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "slaCompliance": {
+                          "type": "number"
+                        },
+                        "deflectionRate": {
+                          "type": "number"
+                        },
+                        "avgFirstResponseMinutes": {
+                          "type": "number"
+                        },
+                        "avgResolutionHours": {
+                          "type": "number"
+                        },
+                        "agentPerformance": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    }
+  }
+}

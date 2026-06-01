@@ -1,8 +1,8 @@
 // Agent pipeline visualizer showing the three-agent flow with live status.
 const AGENTS = [
-  { name: 'TriageAgent', description: 'Classify, prioritize & route', color: 'indigo', events: ['triage:started', 'triage:completed'] },
-  { name: 'ResolutionAgent', description: 'Generate solutions via KB', color: 'purple', events: ['resolution:started', 'resolution:completed'] },
-  { name: 'EscalationAgent', description: 'Assign agents & track SLA', color: 'orange', events: ['escalation:started', 'escalation:completed'] },
+  { name: 'TriageAgent', description: 'Intent · Urgency · Sentiment', color: 'indigo', events: ['triage:started', 'triage:completed'] },
+  { name: 'ResolutionAgent', description: 'Fabric IQ · KB Search · Draft', color: 'purple', events: ['resolution:started', 'resolution:completed'] },
+  { name: 'EscalationAgent', description: 'Risk · Routing · SLA Track', color: 'orange', events: ['escalation:started', 'escalation:completed'] },
 ];
 
 export default function PipelineVisualizer({ latestEvent, processing }) {
