@@ -14,7 +14,7 @@ const demoMode = process.env.DEMO_MODE === 'true' || process.env.DEMO_MODE === '
 export const config = {
   demoMode,
   port: parseInt(process.env.PORT || '3001', 10),
-  clientUrl: process.env.CLIENT_URL || 'http://localhost:3000',
+  clientUrl: process.env.CLIENT_URL || process.env.RAILWAY_STATIC_URL || 'http://localhost:3000',
   azure: {
     tenantId: process.env.AZURE_TENANT_ID || '',
     clientId: process.env.AZURE_CLIENT_ID || '',
@@ -23,10 +23,6 @@ export const config = {
   fabric: {
     workspaceId: process.env.FABRIC_WORKSPACE_ID || '',
     lakehouseId: process.env.FABRIC_LAKEHOUSE_ID || '',
-  },
-  workIQ: {
-    endpoint: process.env.WORK_IQ_ENDPOINT || '',
-    apiKey: process.env.WORK_IQ_API_KEY || '',
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',
@@ -58,15 +54,11 @@ export function hasFabricCredentials() {
   return Boolean(config.fabric.workspaceId && config.fabric.lakehouseId);
 }
 
-export function hasWorkIQCredentials() {
-  return Boolean(config.workIQ.endpoint && config.workIQ.apiKey);
-}
-
 export function getIntegrationStatus() {
   return {
     microsoftGraph: hasMicrosoftCredentials() ? 'live' : 'mock',
     fabricIQ: hasFabricCredentials() ? 'live' : 'mock',
-    workIQ: hasWorkIQCredentials() ? 'live' : 'mock',
+    workIntelligence: hasMicrosoftCredentials() ? 'live-graph' : 'mock',
     openAI: hasOpenAICredentials() ? 'live' : 'mock',
   };
 }

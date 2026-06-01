@@ -89,41 +89,53 @@ export default function TicketList({ tickets, selectedId, onSelect, processingTi
               No {filterLabels[filter] || filter} tickets found.
             </p>
           ) : (
-            filteredTickets.map((ticket) => (
-              <button
-                key={ticket.id}
-                onClick={() => onSelect(ticket.id)}
-                className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                  selectedId === ticket.id
-                    ? 'border-[#0ea5e9] bg-blue-900/30'
-                    : 'border-[#334155] hover:border-[#475569] hover:bg-[#263548]'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-[#f1f5f9] truncate">{ticket.subject}</p>
-                      {ticket.pipeline?.reasoning?.steps?.length > 0 && (
-                        <span className="text-xs text-purple-400 bg-purple-900/30 border border-purple-500/30 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">AI Reasoning</span>
+            (() => {
+              const sorted = [...filteredTickets].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              return sorted.map((ticket) => {
+                const priority = ticket.priority || ticket.pipeline?.triage?.classification?.priority;
+                return (
+                  <button
+                    key={ticket.id}
+                    onClick={() => onSelect(ticket.id)}
+                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                      selectedId === ticket.id
+                        ? 'border-[#0ea5e9] bg-blue-900/30'
+                        : 'border-[#334155] hover:border-[#475569] hover:bg-[#263548]'
+                    } border-l-4 ${
+                      priority === 'critical' ? 'border-l-red-500' :
+                      priority === 'high' ? 'border-l-orange-400' :
+                      priority === 'medium' ? 'border-l-yellow-400' :
+                      priority === 'low' ? 'border-l-green-400' :
+                      'border-l-[#334155]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-[#f1f5f9] truncate">{ticket.subject}</p>
+                          {ticket.pipeline?.reasoning?.steps?.length > 0 && (
+                            <span className="text-xs text-purple-400 bg-purple-900/30 border border-purple-500/30 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">AI Reasoning</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#94a3b8] mt-0.5">{ticket.id}</p>
+                      </div>
+                      <StatusBadge status={ticket.status} />
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      {ticket.priority && <StatusBadge status={ticket.priority} type="priority" />}
+                      {ticket.category && (
+                        <span className="text-xs text-[#64748b]">{ticket.category}</span>
+                      )}
+                      {ticket.pipeline?.triage?.classification?.categoryConfidence && (
+                        <span className="text-xs font-mono text-[#64748b]">
+                          {Math.round(ticket.pipeline.triage.classification.categoryConfidence * 100)}%
+                        </span>
                       )}
                     </div>
-                    <p className="text-xs text-[#94a3b8] mt-0.5">{ticket.id}</p>
-                  </div>
-                  <StatusBadge status={ticket.status} />
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  {ticket.priority && <StatusBadge status={ticket.priority} type="priority" />}
-                  {ticket.category && (
-                    <span className="text-xs text-[#64748b]">{ticket.category}</span>
-                  )}
-                  {ticket.pipeline?.triage?.classification?.categoryConfidence && (
-                    <span className="text-xs font-mono text-[#64748b]">
-                      {Math.round(ticket.pipeline.triage.classification.categoryConfidence * 100)}%
-                    </span>
-                  )}
-                </div>
-              </button>
-            ))
+                  </button>
+                );
+              });
+            })()
           )}
         </div>
       </div>

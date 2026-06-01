@@ -47,5 +47,5 @@ export const api = {
   getAgentWorkload: () => request('/agents/workload'),
   getSLA: () => request('/sla'),
   getServiceHealth: () => request('/services/health'),
-  updateTicket: (id, data) => fetch(`/api/tickets/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) }).then(r => r.json()),
+  updateTicket: (id, data) => request(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 };

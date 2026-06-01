@@ -1,8 +1,15 @@
 # SupportSense AI
 
-**Enterprise Support Intelligence** for the Microsoft Agents League Hackathon 2025 — Enterprise Agents Track (Work IQ + Fabric IQ tier).
+**Enterprise Support Intelligence** for the Microsoft Agents League Hackathon 2025 — Enterprise Agents Track (Work Intelligence + Fabric IQ tier).
 
-SupportSense AI is a three-agent autonomous support pipeline that triages, resolves, and escalates enterprise IT tickets using Microsoft Graph, Fabric IQ, and Work IQ — with transparent AI reasoning, cross-agent shared memory, and full demo mode requiring zero credentials.
+SupportSense AI is a three-agent autonomous support pipeline that triages, resolves, and escalates enterprise IT tickets using Microsoft Graph, Fabric IQ, and a Work Intelligence Layer built on Graph — with transparent AI reasoning, cross-agent shared memory, and full demo mode requiring zero credentials.
+
+## Live Demo
+
+Experience the live application without setting up credentials:
+- **Instant Demo**: Open the client interface and click **Run Demo Pipeline** in the top header.
+- **Visual Event Feed**: Watch the real-time event logs update as the AI agents process the ticket.
+- **AI Transparency**: Go to the **Tickets** tab, click on any ticket, and expand the **AI Reasoning** panel to inspect the multi-step reasoning steps.
 
 ## Architecture
 
@@ -19,11 +26,11 @@ graph LR
     end
 
     subgraph "Microsoft Integrations"
-        C --> F["Work IQ<br/>(Classification)"]
+        C --> F["Work Intelligence<br/>(Classification)"]
         C --> G["Microsoft Graph<br/>(User Profile)"]
         D --> H["Fabric IQ<br/>(KB Search)"]
-        D --> I["Work IQ<br/>(Time Prediction)"]
-        E --> J["Work IQ<br/>(Agent Matching)"]
+        D --> I["Work Intelligence<br/>(Time Prediction)"]
+        E --> J["Work Intelligence<br/>(Agent Matching)"]
         E --> K["Teams Webhook<br/>(Adaptive Cards)"]
     end
 
@@ -45,9 +52,9 @@ graph LR
 
 | Agent | Role | AI Reasoning | Microsoft Integrations |
 |-------|------|-------------|----------------------|
-| **TriageAgent** | Classify, prioritize, route tickets | NLP intent classification, sentiment analysis, confidence scoring | Microsoft Graph (user profiles, service health), Work IQ (employee context) |
-| **ResolutionAgent** | Generate solutions, auto-resolve when confident | Semantic KB search, resolution confidence thresholds, auto-resolve decisions | Fabric IQ (knowledge base, similar tickets), Work IQ (resolution time prediction) |
-| **EscalationAgent** | Agent assignment, SLA tracking, Teams escalation | Multi-factor scoring (skill match, workload, availability, tier), SLA compliance | Work IQ (agent matching, workload), Microsoft Teams (Adaptive Card webhooks) |
+| **TriageAgent** | Classify, prioritize, route tickets | NLP intent classification, sentiment analysis, confidence scoring | Microsoft Graph (user profiles, service health), Work Intelligence (employee context) |
+| **ResolutionAgent** | Generate solutions, auto-resolve when confident | Semantic KB search, resolution confidence thresholds, auto-resolve decisions | Fabric IQ (knowledge base, similar tickets), Work Intelligence (resolution time prediction) |
+| **EscalationAgent** | Agent assignment, SLA tracking, Teams escalation | Multi-factor scoring (skill match, workload, availability, tier), SLA compliance | Work Intelligence (agent matching, workload), Microsoft Teams (Adaptive Card webhooks) |
 
 ## Key Features
 
@@ -65,7 +72,7 @@ graph LR
 ### 🏢 Microsoft Ecosystem Integration
 - **Microsoft Graph**: User profiles, service health monitoring, email notifications
 - **Fabric IQ**: Semantic knowledge base search, ticket analytics, similar ticket lookup
-- **Work IQ**: Employee context, agent skill matching, workload insights, resolution prediction
+- **Work Intelligence**: Employee context, agent skill matching, workload insights, resolution prediction (built on Microsoft Graph API)
 - **Microsoft Teams**: Adaptive Card escalation notifications via incoming webhooks
 
 ### 📊 Real-Time Dashboard
@@ -133,8 +140,6 @@ AZURE_CLIENT_ID=your-client-id
 AZURE_CLIENT_SECRET=your-client-secret
 FABRIC_WORKSPACE_ID=your-workspace-id
 FABRIC_LAKEHOUSE_ID=your-lakehouse-id
-WORK_IQ_ENDPOINT=your-workiq-endpoint
-WORK_IQ_API_KEY=your-workiq-key
 OPENAI_API_KEY=your-openai-key
 ```
 
@@ -168,7 +173,7 @@ SupportSense AI includes a Microsoft Teams app manifest definition to allow side
 | GET | `/api/customers/history?email=` | Customer support history + risk profile |
 | POST | `/api/demo/seed` | Seed & process 3 demo tickets |
 | GET | `/api/analytics` | Fabric IQ ticket analytics + agent performance |
-| GET | `/api/agents/workload` | Work IQ agent pool + workload insights |
+| GET | `/api/agents/workload` | Work Intelligence agent pool + workload insights |
 | GET | `/api/sla` | SLA compliance report |
 | GET | `/api/services/health` | M365 service health |
 
@@ -206,6 +211,21 @@ SupportSense/
 ├── docker-compose.yml
 └── .env.example
 ```
+
+## Deploy in 10 Minutes (Railway)
+
+You can deploy the entire SupportSense AI stack (Node.js backend, React frontend, SQLite database) to Railway in one click:
+
+1. **Fork this repository** to your GitHub account.
+2. **Create a new Project on Railway**:
+   - Go to [Railway](https://railway.app) and sign in.
+   - Click **New Project** > **Deploy from GitHub repo** and select your fork.
+3. **Configure Variables**:
+   Add the following environment variables in the service settings:
+   - `DEMO_MODE=true` (keeps Microsoft APIs in mock mode for instant evaluation)
+   - `PORT=3001`
+   - `CLIENT_URL` = `${{RAILWAY_STATIC_URL}}` (automatically maps to your frontend build URL)
+4. **Deploy**: Railway will automatically detect the `Dockerfile`, build the React app, compile the backend, and deploy the unified container.
 
 ## License
 

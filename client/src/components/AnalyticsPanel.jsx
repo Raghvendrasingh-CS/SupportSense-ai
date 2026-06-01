@@ -34,9 +34,9 @@ export default function AnalyticsPanel({ analytics, serviceHealth, tickets, memo
     const highRiskCustomers = memoryStats?.highRiskCustomers || 2;
     const totalMemoryInteractions = memoryStats?.totalInteractions || 8;
 
-    const dynamicSLA = totalTickets > 0 ? Math.min(99, Math.round(((resolved + pendingReview) / totalTickets) * 100)) : (slaCompliance || 94);
-    const dynamicAvgResponse = totalTickets > 0 ? (totalTickets < 5 ? 8.2 : totalTickets < 10 ? 11.4 : 12.4) : (avgFirstResponseMinutes || 12.4);
-    const dynamicAvgResolution = totalTickets > 0 ? Math.max(0.5, (3.8 - (resolved / Math.max(totalTickets, 1)) * 1.2).toFixed(1)) : (avgResolutionHours || 3.8);
+    const dynamicSLA = totalTickets > 0 ? Math.min(99, Math.round((resolved / totalTickets) * 100)) : (slaCompliance || 94);
+    const dynamicAvgResponse = totalTickets > 0 ? (avgFirstResponseMinutes || 12.4).toFixed(1) : (avgFirstResponseMinutes || 12.4);
+    const dynamicAvgResolution = totalTickets > 0 ? (() => { const processed = tickets.filter(t => t.pipeline?.resolution?.timePrediction?.predictedHours); if (processed.length === 0) return (avgResolutionHours || 3.8); const avg = processed.reduce((sum, t) => sum + (t.pipeline.resolution.timePrediction.predictedHours || 3.8), 0) / processed.length; return Math.round(avg * 10) / 10; })() : (avgResolutionHours || 3.8);
 
     return (
       <div className="space-y-6">

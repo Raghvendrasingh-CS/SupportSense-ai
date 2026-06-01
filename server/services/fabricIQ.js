@@ -70,11 +70,28 @@ function scoreRelevance(query, article) {
   const title = article.title.toLowerCase();
   const category = article.category.toLowerCase();
   let score = article.relevanceScore;
+  const queryWords = q.split(' ');
 
-  if (title.includes(q.split(' ')[0]) || q.includes(category)) {
+  if (queryWords.some(w => title.includes(w))) {
     score = Math.min(0.99, score + 0.05);
   }
-  return score;
+
+  const categoryMap = {
+    sharepoint: ['sharepoint', 'site', 'permission', 'document'],
+    exchange: ['outlook', 'email', 'calendar', 'mailbox'],
+    teams: ['teams', 'meeting', 'audio', 'video'],
+    identity: ['password', 'mfa', 'login', 'authentication', 'locked'],
+    network: ['vpn', 'network', 'connection']
+  };
+
+  const articleCategoryWords = categoryMap[category] || [];
+  const queryMatchesCategory = articleCategoryWords.some(w => q.includes(w));
+
+  if (!queryMatchesCategory) {
+    score = score * 0.5;
+  }
+
+  return Math.min(0.99, score);
 }
 
 export async function searchKnowledgeBase(query, limit = 5) {
@@ -173,26 +190,51 @@ export async function getSimilarTickets(description, limit = 3) {
   try {
     log(MODULE, 'Finding similar historical tickets');
 
-    const mockSimilar = [
-      { id: 'TKT-0847', subject: 'SharePoint permission denied for project site', resolution: 'Added user to site Members group', resolutionTimeHours: 2.1, similarity: 0.91 },
-      { id: 'TKT-0793', subject: 'Cannot open SharePoint document library', resolution: 'Cleared SharePoint cache and re-synced OneDrive', resolutionTimeHours: 1.4, similarity: 0.85 },
-      { id: 'TKT-0712', subject: 'Access denied to team SharePoint', resolution: 'Updated conditional access policy exception', resolutionTimeHours: 4.5, similarity: 0.79 },
-    ];
+    const mockSimilar = {
+      SharePoint: [
+        { id: 'TKT-0847', subject: 'SharePoint permission denied for project site', resolution: 'Added user to site Members group', resolutionTimeHours: 2.1, similarity: 0.91 },
+        { id: 'TKT-0793', subject: 'Cannot open SharePoint document library', resolution: 'Cleared SharePoint cache and re-synced OneDrive', resolutionTimeHours: 1.4, similarity: 0.85 }
+      ],
+      Exchange: [
+        { id: 'TKT-0654', subject: 'Outlook calendar not syncing with mobile', resolution: 'Reset cached mode and rebuilt OST file', resolutionTimeHours: 1.8, similarity: 0.88 },
+        { id: 'TKT-0601', subject: 'Shared mailbox not appearing in Outlook', resolution: 'Re-added account and waited 30 min for provisioning', resolutionTimeHours: 0.5, similarity: 0.82 }
+      ],
+      Teams: [
+        { id: 'TKT-0732', subject: 'Teams audio dropping during calls', resolution: 'Updated Teams client and cleared cache', resolutionTimeHours: 1.2, similarity: 0.89 },
+        { id: 'TKT-0698', subject: 'Teams presence showing offline incorrectly', resolution: 'Signed out and back in to Teams', resolutionTimeHours: 0.3, similarity: 0.84 }
+      ],
+      Identity: [
+        { id: 'TKT-0521', subject: 'MFA not working after new phone setup', resolution: 'Re-registered authenticator app via aka.ms/mfasetup', resolutionTimeHours: 0.5, similarity: 0.93 },
+        { id: 'TKT-0489', subject: 'Account locked out after failed login attempts', resolution: 'Unlocked via Azure AD and reset MFA', resolutionTimeHours: 0.3, similarity: 0.87 }
+      ],
+      Network: [
+        { id: 'TKT-0412', subject: 'VPN connection dropping every hour', resolution: 'Updated VPN client and changed gateway', resolutionTimeHours: 2.5, similarity: 0.86 }
+      ],
+      General: [
+        { id: 'TKT-0301', subject: 'General M365 access issue', resolution: 'Standard troubleshooting applied', resolutionTimeHours: 3.0, similarity: 0.70 }
+      ]
+    };
 
     if (!hasFabricCredentials()) {
       const desc = description.toLowerCase();
-      const filtered = mockSimilar.filter((t) =>
-        desc.includes('sharepoint') ? t.subject.toLowerCase().includes('sharepoint') :
-        desc.includes('outlook') || desc.includes('calendar') ? t.subject.toLowerCase().includes('outlook') || t.subject.toLowerCase().includes('calendar') :
-        desc.includes('teams') ? t.subject.toLowerCase().includes('teams') :
-        true
-      );
-      return { similarTickets: filtered.slice(0, limit), processingTimeMs: measureEnd(startMs), source: 'mock' };
+      const detectedCategory = Object.keys(mockSimilar).find(cat => {
+        const keywords = {
+          SharePoint: ['sharepoint', 'site', 'permission'],
+          Exchange: ['outlook', 'email', 'calendar', 'mailbox'],
+          Teams: ['teams', 'meeting', 'audio'],
+          Identity: ['password', 'mfa', 'login', 'locked', 'authentication'],
+          Network: ['vpn', 'network', 'connection']
+        };
+        return (keywords[cat] || []).some(kw => desc.includes(kw));
+      }) || 'General';
+
+      const results = mockSimilar[detectedCategory] || mockSimilar.General;
+      return { similarTickets: results.slice(0, limit), processingTimeMs: measureEnd(startMs), source: 'mock' };
     }
 
     const sql = 'SELECT TOP ? id, subject, resolution, resolution_time_hours FROM resolved_tickets ORDER BY similarity DESC';
     const { data, processingTimeMs } = await queryFabricLakehouse(sql, [limit]);
-    return { similarTickets: data.rows || mockSimilar, processingTimeMs, source: 'fabric' };
+    return { similarTickets: data.rows || Object.values(mockSimilar).flat().slice(0, limit), processingTimeMs, source: 'fabric' };
   } catch (error) {
     logError(MODULE, 'getSimilarTickets failed — mock fallback', error);
     return {

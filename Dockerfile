@@ -14,6 +14,7 @@ WORKDIR /app
 COPY server/package*.json ./server/
 RUN cd server && npm ci --production
 COPY server/ ./server/
+RUN cd server && (npm install better-sqlite3 --build-from-source || echo "SQLite native build failed, JSON fallback will be used")
 
 # Copy built client
 COPY --from=client-build /app/client/dist ./client/dist

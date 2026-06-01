@@ -79,7 +79,7 @@ function generateAdaptiveCard(ticket, triageResult, agent, sla) {
         "items": [
           {
             "type": "TextBlock",
-            "text": `⚠️ Escalation Tier: ${agent.tier}`,
+            "text": `⚠️ Escalation Tier: ${agent?.tier || 'L2'}`,
             "weight": "Bolder",
             "color": triageResult.classification.priority === 'critical' ? "Attention" : "Warning",
             "size": "Medium"
@@ -131,7 +131,7 @@ function generateAdaptiveCard(ticket, triageResult, agent, sla) {
             "items": [
               {
                 "type": "Image",
-                "url": `https://ui-avatars.com/api/?name=${encodeURIComponent(agent.name)}&background=0ea5e9&color=fff&bold=true`,
+                "url": `https://ui-avatars.com/api/?name=${encodeURIComponent(agent?.name || 'Support Agent')}&background=0ea5e9&color=fff&bold=true`,
                 "size": "Small",
                 "style": "Person"
               }
@@ -143,13 +143,13 @@ function generateAdaptiveCard(ticket, triageResult, agent, sla) {
             "items": [
               {
                 "type": "TextBlock",
-                "text": agent.name,
+                "text": agent?.name || 'Support Agent',
                 "weight": "Bolder",
                 "wrap": true
               },
               {
                 "type": "TextBlock",
-                "text": `Match Score: ${Math.round(agent.matchScore * 100)}% | Tier: ${agent.tier}`,
+                "text": `Match Score: ${Math.round((agent?.matchScore || 0.85) * 100)}% | Tier: ${agent?.tier || 'L2'}`,
                 "isSubdued": true,
                 "spacing": "None",
                 "wrap": true

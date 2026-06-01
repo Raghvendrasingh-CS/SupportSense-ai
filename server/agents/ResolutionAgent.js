@@ -89,6 +89,16 @@ const RESOLUTION_TEMPLATES = {
     ],
     automatedFixes: ["refresh_connections", "check_flow_history"]
   },
+  Hardware: {
+    steps: [
+      "Check physical connections and cables for the device",
+      "Verify device drivers are updated to the latest certified version",
+      "Restart the device and run built-in hardware diagnostics",
+      "Check for resource conflicts in OS device manager",
+      "If physical damage or failure is confirmed, initiate hardware replacement process"
+    ],
+    automatedFixes: ["run_hardware_diagnostics", "request_hardware_replacement"]
+  },
 };
 
 async function generateResolutionWithLLM(ticket, triageResult, kbArticles) {

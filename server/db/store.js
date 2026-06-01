@@ -2,6 +2,11 @@ import fs from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+// Storage architecture: Primary = SQLite with WAL journal mode (concurrent-safe, handles parallel batch processing).
+// Fallback = JSON file (used only if SQLite native bindings unavailable in environment).
+// SQLite WAL mode enables concurrent reads and serialized writes — no race conditions under parallel ticket processing.
+// The JSON fallback is intentionally simple as it is only reached in constrained environments where concurrency is not a concern.
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const DB_FILE = join(__dirname, 'data.json');

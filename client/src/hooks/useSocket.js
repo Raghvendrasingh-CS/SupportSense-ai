@@ -15,7 +15,7 @@ export function useSocket() {
     const entry = { event: eventName, data, receivedAt: new Date().toISOString() };
     console.log(`[${MODULE}] ${new Date().toISOString()} Event: ${eventName}`, data);
     setLatestEvent(entry);
-    setEvents((prev) => [entry, ...prev].slice(0, 100));
+    setEvents((prev) => [entry, ...prev].slice(0, 50));
   }, []);
 
   useEffect(() => {

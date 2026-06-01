@@ -46,7 +46,7 @@ async function acquireToken() {
   }
 }
 
-async function getToken() {
+export async function getToken() {
   try {
     if (cachedToken && Date.now() < tokenExpiry) {
       return { token: cachedToken, mock: false, processingTimeMs: 0 };

@@ -23,7 +23,7 @@ async function startServer() {
 
     const io = new Server(httpServer, {
       cors: {
-        origin: config.clientUrl,
+        origin: process.env.NODE_ENV === 'production' ? true : config.clientUrl,
         methods: ['GET', 'POST'],
       },
     });
@@ -46,7 +46,7 @@ async function startServer() {
       xFrameOptions: { action: 'deny' },
     }));
 
-    app.use(cors({ origin: config.clientUrl }));
+    app.use(cors({ origin: process.env.NODE_ENV === 'production' ? true : config.clientUrl }));
     app.use(express.json());
 
     // Serve Copilot manifest and OpenAPI spec
