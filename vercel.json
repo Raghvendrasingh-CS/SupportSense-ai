@@ -4,26 +4,11 @@
   "buildCommand": "cd client && npm run build",
   "outputDirectory": "client/dist",
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index.js"
-    },
-    {
-      "source": "/openapi.json",
-      "destination": "/api/index.js"
-    },
-    {
-      "source": "/ai-plugin.json",
-      "destination": "/api/index.js"
-    },
-    {
-      "source": "/.well-known/ai-plugin.json",
-      "destination": "/api/index.js"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/$1"
-    }
+    { "source": "/api/:path*", "destination": "/api/index.js" },
+    { "source": "/openapi.json", "destination": "/api/index.js" },
+    { "source": "/ai-plugin.json", "destination": "/api/index.js" },
+    { "source": "/.well-known/ai-plugin.json", "destination": "/api/index.js" },
+    { "source": "/(.*)", "destination": "/$1" }
   ],
   "functions": {
     "api/index.js": {
