@@ -1,7 +1,9 @@
-// Microsoft Graph API client with token acquisition and mock fallback.
+// Microsoft Graph API client with token acquisition and dynamic simulation.
 import { config, hasMicrosoftCredentials } from '../config/env.js';
 import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
+import { db } from '../db/store.js';
+import { hashString } from '../utils/hash.js';
 
 const MODULE = 'MicrosoftGraph';
 
@@ -12,8 +14,8 @@ async function acquireToken() {
   const startMs = measureStart();
   try {
     if (!hasMicrosoftCredentials()) {
-      log(MODULE, 'No credentials — using mock token');
-      return { token: 'mock-graph-token', processingTimeMs: measureEnd(startMs), mock: true };
+      log(MODULE, 'No credentials — using simulated token');
+      return { token: 'simulated-graph-token', processingTimeMs: measureEnd(startMs), mock: true };
     }
 
     const url = `https://login.microsoftonline.com/${config.azure.tenantId}/oauth2/v2.0/token`;
@@ -41,8 +43,8 @@ async function acquireToken() {
     log(MODULE, 'Acquired Graph API token');
     return { token: cachedToken, processingTimeMs: measureEnd(startMs), mock: false };
   } catch (error) {
-    logError(MODULE, 'Token acquisition failed — falling back to mock', error);
-    return { token: 'mock-graph-token', processingTimeMs: measureEnd(startMs), mock: true, error: error.message };
+    logError(MODULE, 'Token acquisition failed — falling back to simulation', error);
+    return { token: 'simulated-graph-token', processingTimeMs: measureEnd(startMs), mock: true, error: error.message };
   }
 }
 
@@ -54,31 +56,46 @@ export async function getToken() {
     return await acquireToken();
   } catch (error) {
     logError(MODULE, 'getToken failed', error);
-    return { token: 'mock-graph-token', mock: true, processingTimeMs: 0 };
+    return { token: 'simulated-graph-token', mock: true, processingTimeMs: 0 };
   }
 }
 
-function mockUserProfile(userId) {
-  const profiles = {
-    'user-001': { id: 'user-001', displayName: 'Sarah Chen', mail: 'sarah.chen@contoso.com', department: 'Engineering', jobTitle: 'Senior Developer' },
-    'user-002': { id: 'user-002', displayName: 'Marcus Webb', mail: 'marcus.webb@contoso.com', department: 'Finance', jobTitle: 'Financial Analyst' },
-    'user-003': { id: 'user-003', displayName: 'Elena Rodriguez', mail: 'elena.r@contoso.com', department: 'Operations', jobTitle: 'Ops Manager' },
-  };
-  return profiles[userId] || {
-    id: userId,
-    displayName: 'Demo User',
-    mail: 'demo.user@contoso.com',
-    department: 'General',
-    jobTitle: 'Employee',
-  };
-}
+/**
+ * Generates a realistic simulated user profile dynamically.
+ */
+function generateDynamicUserProfile(userId) {
+  const hash = hashString(userId);
+  const cleanId = userId.split('@')[0];
+  const parts = cleanId.split('.');
+  
+  const firstNames = ['Sarah', 'Marcus', 'Elena', 'David', 'Sunita', 'Michelle', 'Arjun', 'Priya', 'Vikram', 'Rohan'];
+  const lastNames = ['Chen', 'Webb', 'Rodriguez', 'Park', 'Reddy', 'Chen', 'Mehta', 'Sharma', 'Nair', 'Kapoor'];
+  
+  let firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : firstNames[hash % firstNames.length];
+  let lastName = parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : lastNames[(hash >> 1) % lastNames.length];
+  const displayName = `${firstName} ${lastName}`;
 
-function mockSupportTickets() {
-  return [
-    { id: 'TKT-1001', subject: 'Cannot access SharePoint site', status: 'open', priority: 'high', createdDateTime: new Date(Date.now() - 3600000).toISOString(), requesterId: 'user-001' },
-    { id: 'TKT-1002', subject: 'Outlook calendar sync failing', status: 'open', priority: 'medium', createdDateTime: new Date(Date.now() - 7200000).toISOString(), requesterId: 'user-002' },
-    { id: 'TKT-1003', subject: 'Teams meeting audio issues', status: 'open', priority: 'low', createdDateTime: new Date(Date.now() - 14400000).toISOString(), requesterId: 'user-003' },
-  ];
+  const departments = ['Engineering', 'Finance', 'Operations', 'Retail', 'Logistics', 'Design Studio', 'Manufacturing'];
+  const department = departments[hash % departments.length];
+
+  const titles = {
+    Engineering: 'Senior Developer',
+    Finance: 'Financial Analyst',
+    Operations: 'Ops Manager',
+    Retail: 'Store Director',
+    Logistics: 'Supply Chain Manager',
+    'Design Studio': 'Lead Designer',
+    Manufacturing: 'Team Lead'
+  };
+  const jobTitle = titles[department] || 'Employee';
+
+  return {
+    id: userId,
+    displayName,
+    mail: userId.includes('@') ? userId : `${userId}@company.com`,
+    department,
+    jobTitle,
+  };
 }
 
 export async function fetchUserProfile(userId) {
@@ -88,9 +105,9 @@ export async function fetchUserProfile(userId) {
     const { token, mock } = await getToken();
 
     if (mock) {
-      const profile = mockUserProfile(userId);
-      log(MODULE, 'Returning mock user profile');
-      return { ...profile, processingTimeMs: measureEnd(startMs), source: 'mock' };
+      const profile = generateDynamicUserProfile(userId);
+      log(MODULE, 'Returning simulated user profile');
+      return { ...profile, processingTimeMs: measureEnd(startMs), source: 'simulated-graph' };
     }
 
     const response = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}`, {
@@ -113,8 +130,8 @@ export async function fetchUserProfile(userId) {
       source: 'graph',
     };
   } catch (error) {
-    logError(MODULE, 'fetchUserProfile failed — mock fallback', error);
-    return { ...mockUserProfile(userId), processingTimeMs: measureEnd(startMs), source: 'mock-fallback', error: error.message };
+    logError(MODULE, 'fetchUserProfile failed — simulated fallback', error);
+    return { ...generateDynamicUserProfile(userId), processingTimeMs: measureEnd(startMs), source: 'simulated-graph-fallback', error: error.message };
   }
 }
 
@@ -124,11 +141,20 @@ export async function fetchSupportTickets(filter = {}) {
     log(MODULE, 'Fetching support tickets', filter);
     const { token, mock } = await getToken();
 
+    // Pull tickets from local database to synchronize
+    const localTickets = db.getTickets();
+    const formattedTickets = localTickets.map((t) => ({
+      id: t.id,
+      subject: t.subject,
+      status: t.status === 'resolved' ? 'resolved' : 'open',
+      priority: t.priority || 'medium',
+      createdDateTime: t.createdAt,
+      requesterId: t.requesterId,
+    }));
+
     if (mock) {
-      let tickets = mockSupportTickets();
-      if (filter.status) tickets = tickets.filter((t) => t.status === filter.status);
-      log(MODULE, `Returning ${tickets.length} mock tickets`);
-      return { tickets, processingTimeMs: measureEnd(startMs), source: 'mock' };
+      log(MODULE, `Returning ${formattedTickets.length} database-synchronized simulated tickets`);
+      return { tickets: formattedTickets, processingTimeMs: measureEnd(startMs), source: 'simulated-graph' };
     }
 
     const response = await fetch('https://graph.microsoft.com/v1.0/servicePrincipals', {
@@ -140,10 +166,19 @@ export async function fetchSupportTickets(filter = {}) {
       throw new Error(`Graph tickets fetch failed: ${response.status}`);
     }
 
-    return { tickets: mockSupportTickets(), processingTimeMs: measureEnd(startMs), source: 'graph-derived' };
+    return { tickets: formattedTickets, processingTimeMs: measureEnd(startMs), source: 'graph-derived' };
   } catch (error) {
-    logError(MODULE, 'fetchSupportTickets failed — mock fallback', error);
-    return { tickets: mockSupportTickets(), processingTimeMs: measureEnd(startMs), source: 'mock-fallback', error: error.message };
+    logError(MODULE, 'fetchSupportTickets failed — simulated fallback', error);
+    const localTickets = db.getTickets();
+    const formattedTickets = localTickets.map((t) => ({
+      id: t.id,
+      subject: t.subject,
+      status: t.status === 'resolved' ? 'resolved' : 'open',
+      priority: t.priority || 'medium',
+      createdDateTime: t.createdAt,
+      requesterId: t.requesterId,
+    }));
+    return { tickets: formattedTickets, processingTimeMs: measureEnd(startMs), source: 'simulated-graph-fallback', error: error.message };
   }
 }
 
@@ -154,8 +189,8 @@ export async function sendNotification(userId, message) {
     const { token, mock } = await getToken();
 
     if (mock) {
-      log(MODULE, 'Mock notification sent');
-      return { success: true, notificationId: `mock-notif-${Date.now()}`, processingTimeMs: measureEnd(startMs), source: 'mock' };
+      log(MODULE, 'Simulated notification sent');
+      return { success: true, notificationId: `sim-notif-${Date.now()}`, processingTimeMs: measureEnd(startMs), source: 'simulated-graph' };
     }
 
     const response = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}/sendMail`, {
@@ -177,8 +212,8 @@ export async function sendNotification(userId, message) {
 
     return { success: true, notificationId: `graph-notif-${Date.now()}`, processingTimeMs: measureEnd(startMs), source: 'graph' };
   } catch (error) {
-    logError(MODULE, 'sendNotification failed — mock fallback', error);
-    return { success: true, notificationId: `mock-notif-${Date.now()}`, processingTimeMs: measureEnd(startMs), source: 'mock-fallback', error: error.message };
+    logError(MODULE, 'sendNotification failed — simulated fallback', error);
+    return { success: true, notificationId: `sim-notif-${Date.now()}`, processingTimeMs: measureEnd(startMs), source: 'simulated-graph-fallback', error: error.message };
   }
 }
 
@@ -188,16 +223,23 @@ export async function getServiceHealth() {
     log(MODULE, 'Checking Microsoft 365 service health');
     const { mock } = await getToken();
 
+    // Dynamically simulate status based on current date
+    const hour = new Date().getHours();
+    const teamsStatus = hour % 3 === 0 ? 'degraded' : 'healthy';
+    const teamsIncidents = teamsStatus === 'degraded' ? 1 : 0;
+
+    const baseServices = [
+      { name: 'Exchange Online', status: 'healthy', incidents: 0 },
+      { name: 'SharePoint Online', status: 'healthy', incidents: 0 },
+      { name: 'Microsoft Teams', status: teamsStatus, incidents: teamsIncidents },
+      { name: 'OneDrive', status: 'healthy', incidents: 0 },
+    ];
+
     if (mock) {
       return {
-        services: [
-          { name: 'Exchange Online', status: 'healthy', incidents: 0 },
-          { name: 'SharePoint Online', status: 'healthy', incidents: 0 },
-          { name: 'Microsoft Teams', status: 'degraded', incidents: 1 },
-          { name: 'OneDrive', status: 'healthy', incidents: 0 },
-        ],
+        services: baseServices,
         processingTimeMs: measureEnd(startMs),
-        source: 'mock',
+        source: 'simulated-graph',
       };
     }
 
@@ -229,14 +271,16 @@ export async function getServiceHealth() {
 
     return { services, processingTimeMs: measureEnd(startMs), source: 'graph' };
   } catch (error) {
-    logError(MODULE, 'getServiceHealth failed — mock fallback', error);
+    logError(MODULE, 'getServiceHealth failed — simulated fallback', error);
+    const hour = new Date().getHours();
+    const teamsStatus = hour % 3 === 0 ? 'degraded' : 'healthy';
     return {
       services: [
         { name: 'Exchange Online', status: 'healthy', incidents: 0 },
-        { name: 'Microsoft Teams', status: 'degraded', incidents: 1 },
+        { name: 'Microsoft Teams', status: teamsStatus, incidents: teamsStatus === 'degraded' ? 1 : 0 },
       ],
       processingTimeMs: measureEnd(startMs),
-      source: 'mock-fallback',
+      source: 'simulated-graph-fallback',
       error: error.message,
     };
   }

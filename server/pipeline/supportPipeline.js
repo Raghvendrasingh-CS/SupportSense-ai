@@ -1,9 +1,12 @@
-// Support pipeline orchestrator — runs Triage → Resolution → Escalation agents sequentially.
+// Support pipeline orchestrator — runs Triage → Resolution → Escalation agents sequentially or via Debate Cycle.
 import { v4 as uuidv4 } from 'uuid';
 import { log, logError, measureStart, measureEnd } from '../utils/logger.js';
 import { triageTicket } from '../agents/TriageAgent.js';
 import { resolveTicket } from '../agents/ResolutionAgent.js';
 import { escalateTicket } from '../agents/EscalationAgent.js';
+import { runDebate } from '../agents/DebateEngine.js';
+import { logAuditTrace } from '../utils/auditLogger.js';
+import { saveAgentMemory, lookupAgentMemory } from '../memory/memoryController.js';
 import { getCustomerHistory, addToMemory, getCustomerRiskProfile, getSentimentTrend, seedDemoMemory, getMemoryStats } from '../agents/ticketMemory.js';
 import { buildReasoningChain } from '../agents/reasoningChain.js';
 import { db } from '../db/store.js';
@@ -88,38 +91,105 @@ export async function processTicket(ticketData, emitFn = null) {
     ticket.riskProfile = riskProfile;
     ticket.sentimentTrend = sentimentTrend;
 
+    const relevantMemories = await lookupAgentMemory(ticket.category, ticket.subject);
+    ticket.relevantMemories = relevantMemories;
+    log(MODULE, `Relevant agent memories retrieved: ${relevantMemories.length} cases`);
+
     const triageStart = measureStart();
     const triageResult = await triageTicket(ticket, emitFn);
     log(MODULE, 'TriageAgent finished', { processingTimeMs: measureEnd(triageStart) });
 
-    ticket.status = 'resolving';
     ticket.priority = triageResult.classification.priority;
     ticket.category = triageResult.classification.category;
     ticket.updatedAt = new Date().toISOString();
     saveTicket(ticket);
 
-    const resolutionStart = measureStart();
-    const resolutionResult = await resolveTicket(ticket, triageResult, emitFn);
-    log(MODULE, 'ResolutionAgent finished', { processingTimeMs: measureEnd(resolutionStart) });
+    // Compute initial triage confidence
+    const categoryConf = triageResult.classification.categoryConfidence || 1.0;
+    const priorityConf = triageResult.classification.priorityConfidence || 1.0;
+    const triageConfidence = Math.min(categoryConf, priorityConf);
 
-    ticket.status = resolutionResult.status === 'auto_resolved' ? 'resolved' : 'escalating';
+    let resolutionResult;
+    let escalationResult;
+    let debateResult = null;
+
+    if (triageConfidence < 0.85) {
+      log(MODULE, `Triage confidence (${triageConfidence}) < 85%. Starting multi-agent consensus debate...`);
+      if (emitFn) {
+        emitFn('debate:initiated', {
+          ticketId: ticket.id,
+          triageConfidence,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Concurrently invoke Resolution and Escalation agents
+      ticket.status = 'resolving';
+      saveTicket(ticket);
+      const resStart = measureStart();
+      const escStart = measureStart();
+
+      const [resRes, escRes] = await Promise.all([
+        resolveTicket(ticket, triageResult, null),
+        escalateTicket(ticket, triageResult, { status: 'pending_review', resolution: { confidence: 0.5 } }, null)
+      ]);
+
+      log(MODULE, `Concurrent agents execution complete: Res in ${measureEnd(resStart)}ms, Esc in ${measureEnd(escStart)}ms`);
+
+      // Run debate cycle
+      debateResult = await runDebate(ticket, triageResult, resRes, escRes, emitFn);
+      ticket.debate = debateResult;
+      
+      resolutionResult = {
+        ...resRes,
+        resolution: debateResult.resolution,
+        status: debateResult.finalStatus === 'resolved' ? 'auto_resolved' : 'pending_review',
+      };
+
+      escalationResult = {
+        ...escRes,
+        escalated: debateResult.escalation.escalated,
+        escalationTier: debateResult.escalation.escalationTier,
+        assignedAgent: debateResult.escalation.assignedAgent,
+      };
+
+      ticket.status = debateResult.finalStatus;
+      if (debateResult.escalation.assignedAgent) {
+        ticket.assignedAgent = debateResult.escalation.assignedAgent;
+      }
+    } else {
+      // Standard sequential execution pipeline
+      ticket.status = 'resolving';
+      ticket.updatedAt = new Date().toISOString();
+      saveTicket(ticket);
+
+      const resolutionStart = measureStart();
+      resolutionResult = await resolveTicket(ticket, triageResult, emitFn);
+      log(MODULE, 'ResolutionAgent finished', { processingTimeMs: measureEnd(resolutionStart) });
+
+      ticket.status = resolutionResult.status === 'auto_resolved' ? 'resolved' : 'escalating';
+      ticket.updatedAt = new Date().toISOString();
+      saveTicket(ticket);
+
+      const escalationStart = measureStart();
+      escalationResult = await escalateTicket(ticket, triageResult, resolutionResult, emitFn);
+      log(MODULE, 'EscalationAgent finished', { processingTimeMs: measureEnd(escalationStart) });
+
+      if (escalationResult.escalated) {
+        ticket.status = 'escalated';
+        ticket.assignedAgent = escalationResult.assignedAgent;
+      } else if (resolutionResult.status === 'auto_resolved') {
+        ticket.status = 'resolved';
+      } else {
+        ticket.status = 'pending_review';
+      }
+    }
+
     ticket.updatedAt = new Date().toISOString();
     saveTicket(ticket);
 
-    const escalationStart = measureStart();
-    const escalationResult = await escalateTicket(ticket, triageResult, resolutionResult, emitFn);
-    log(MODULE, 'EscalationAgent finished', { processingTimeMs: measureEnd(escalationStart) });
-
-    if (escalationResult.escalated) {
-      ticket.status = 'escalated';
-      ticket.assignedAgent = escalationResult.assignedAgent;
-    } else if (resolutionResult.status === 'auto_resolved') {
-      ticket.status = 'resolved';
-    } else {
-      ticket.status = 'pending_review';
-    }
-
-    const reasoning = buildReasoningChain(ticket, triageResult, resolutionResult, escalationResult, customerHistory, sentimentTrend); log(MODULE, `Reasoning chain built: ${reasoning.totalSteps} steps, key decision: ${reasoning.keyDecisionPoint}`);
+    const reasoning = buildReasoningChain(ticket, triageResult, resolutionResult, escalationResult, customerHistory, sentimentTrend);
+    log(MODULE, `Reasoning chain built: ${reasoning.totalSteps} steps, key decision: ${reasoning.keyDecisionPoint}`);
 
     const finalStatus = ticket.status === 'resolved' ? 'resolved' : ticket.status === 'escalated' ? 'escalated' : 'pending_review';
     addToMemory(
@@ -140,11 +210,22 @@ export async function processTicket(ticketData, emitFn = null) {
       resolution: resolutionResult,
       escalation: escalationResult,
       reasoning: reasoning,
+      debate: debateResult,
       totalProcessingTimeMs,
       completedAt: new Date().toISOString(),
     };
     ticket.updatedAt = new Date().toISOString();
     saveTicket(ticket);
+
+    // Trigger immutable audit log trace asynchronously
+    logAuditTrace(ticket.id, ticket.pipeline).catch(err => {
+      logError(MODULE, `Async logAuditTrace failed for ${ticket.id}`, err);
+    });
+
+    // Trigger persistent agent memory learning feedback loop
+    saveAgentMemory(ticket, ticket.pipeline).catch(err => {
+      logError(MODULE, `Async saveAgentMemory failed for ${ticket.id}`, err);
+    });
 
     const pipelineResult = {
       ticketId: ticket.id,

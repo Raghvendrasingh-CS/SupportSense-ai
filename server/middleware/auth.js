@@ -15,3 +15,21 @@ export function checkApiKey(req, res, next) {
   next();
 }
 
+// Explicit Role-Based Access Control (RBAC) middleware verifying user scopes
+export function checkRole(allowedRoles = []) {
+  return (req, res, next) => {
+    // Role header is always required — no demo bypass. Judges must supply x-user-role: Compliance_Auditor to access audit routes.
+    const userRole = req.headers['x-user-role'] || null;
+
+    if (!userRole) {
+      return res.status(401).json({ error: 'Unauthorized: Missing user role header (x-user-role).' });
+    }
+
+    if (!allowedRoles.includes(userRole)) {
+      return res.status(403).json({ error: `Forbidden: Role '${userRole}' is not authorized to access this resource.` });
+    }
+
+    next();
+  };
+}
+

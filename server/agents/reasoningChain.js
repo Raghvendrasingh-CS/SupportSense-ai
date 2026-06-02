@@ -198,6 +198,27 @@ export function buildReasoningChain(ticket, triageResult, resolutionResult, esca
       confidence: resConf
     });
 
+    const debate = tk.debate || tk.pipeline?.debate;
+    if (debate) {
+      steps.push({
+        stepNumber: 6.5,
+        stepName: 'Multi-Agent Consensus Debate',
+        agent: 'DebateEngine',
+        microsoftTech: 'Consensus Debate Protocol',
+        description: 'Concurrently invoking Resolution and Escalation agents to resolve conflicting signals via cross-examination.',
+        signals: [
+          'Initial triage confidence: ' + Math.round((triageClass.categoryConfidence || 0.8) * 100) + '%',
+          'Debate iterations: ' + debate.iterations,
+          'Consensus reached: ' + (debate.consensusReached ? 'Yes' : 'No'),
+          'Human-in-the-loop: ' + (debate.humanInTheLoop ? 'Yes' : 'No')
+        ],
+        decision: debate.humanInTheLoop
+          ? 'Human-in-the-loop override triggered: flagged for manager review'
+          : 'Consensus reached: finalized resolution and routing path',
+        confidence: debate.consensusReached ? 1.0 : 0.7
+      });
+    }
+
     // Step 7: Routing Decision
     steps.push({
       stepNumber: 7,

@@ -19,10 +19,14 @@ import { getTicketAnalytics } from '../services/fabricIQ.js';
 import { getWorkloadInsights } from '../services/workIQ.js';
 import { fetchSupportTickets, getServiceHealth } from '../services/microsoftGraph.js';
 import { validateTicket } from '../middleware/validate.js';
-import { checkApiKey } from '../middleware/auth.js';
+import { checkApiKey, checkRole } from '../middleware/auth.js';
+import { getAuditLogs, getAuditLogByTicket } from '../utils/auditLogger.js';
+import analyticsRoutes from './analytics.js';
 
 const MODULE = 'APIRoutes';
 const router = Router();
+
+router.use('/analytics', analyticsRoutes);
 
 const postLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -293,6 +297,43 @@ router.get('/services/health', async (_req, res) => {
     res.json({ ...health, processingTimeMs: measureEnd(startMs) });
   } catch (error) {
     logError(MODULE, 'GET /services/health failed', error);
+    res.status(500).json({ error: error.message, processingTimeMs: measureEnd(startMs) });
+  }
+});
+
+router.get('/audit-logs', checkRole(['Compliance_Auditor', 'Manager']), async (_req, res) => {
+  const startMs = measureStart();
+  try {
+    log(MODULE, 'GET /audit-logs');
+    const logs = await getAuditLogs();
+    res.json({
+      logs,
+      count: logs.length,
+      processingTimeMs: measureEnd(startMs),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logError(MODULE, 'GET /audit-logs failed', error);
+    res.status(500).json({ error: error.message, processingTimeMs: measureEnd(startMs) });
+  }
+});
+
+router.get('/audit-logs/:ticketId', checkRole(['Compliance_Auditor', 'Manager']), async (req, res) => {
+  const startMs = measureStart();
+  try {
+    const { ticketId } = req.params;
+    log(MODULE, `GET /audit-logs/${ticketId}`);
+    const auditLog = await getAuditLogByTicket(ticketId);
+    if (!auditLog) {
+      return res.status(404).json({ error: `Audit log for ticket '${ticketId}' not found.`, processingTimeMs: measureEnd(startMs) });
+    }
+    res.json({
+      log: auditLog,
+      processingTimeMs: measureEnd(startMs),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logError(MODULE, `GET /audit-logs/${req.params.ticketId} failed`, error);
     res.status(500).json({ error: error.message, processingTimeMs: measureEnd(startMs) });
   }
 });
