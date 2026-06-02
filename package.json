@@ -1,5 +1,6 @@
 {
   "name": "supportsense-ai",
+  "type": "module",
   "version": "1.0.0",
   "description": "SupportSense AI — Enterprise support intelligence for Microsoft Agents League Hackathon 2025",
   "private": true,
