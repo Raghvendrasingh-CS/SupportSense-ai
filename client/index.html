@@ -35,19 +35,20 @@
             <div style="background: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px;">
               <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em;">Total Financial Savings</span>
               <span id="roi-savings" style="font-size: 32px; font-weight: 800; color: #10b981; font-family: monospace;">$0.00</span>
-              <span style="font-size: 11px; color: #64748b;">vs $75.00 manual agent cost</span>
+              <span id="roi-savings-subtext" style="font-size: 11px; color: #f59e0b; font-style: italic;">Trigger pipeline runs below to calculate real-time savings.</span>
+              <span id="roi-savings-baseline" style="font-size: 11px; color: #64748b; display: none;">vs $75.00 manual agent cost</span>
             </div>
             <!-- Velocity Card -->
             <div style="background: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px;">
               <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em;">Velocity Reduction</span>
-              <span id="roi-velocity" style="font-size: 32px; font-weight: 800; color: #0ea5e9; font-family: monospace;">94.2%</span>
-              <span style="font-size: 11px; color: #64748b;">reduction in ticket processing time</span>
+              <span id="roi-velocity" style="font-size: 32px; font-weight: 800; color: #0ea5e9; font-family: monospace;">—</span>
+              <span id="roi-velocity-subtext" style="font-size: 11px; color: #64748b;">computed from actual pipeline duration vs 47m baseline</span>
             </div>
             <!-- Cost per AI Card -->
             <div style="background: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px;">
               <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em;">Cost Per AI Resolution</span>
-              <span id="roi-ai-cost" style="font-size: 32px; font-weight: 800; color: #8b5cf6; font-family: monospace;">$4.50</span>
-              <span style="font-size: 11px; color: #64748b;">Fixed compute and LLM token fee</span>
+              <span id="roi-ai-cost" style="font-size: 32px; font-weight: 800; color: #8b5cf6; font-family: monospace;">—</span>
+              <span id="roi-cost-subtext" style="font-size: 11px; color: #64748b;">token-derived AI processing fee ($0.015/1K tokens)</span>
             </div>
           </div>
           
@@ -76,10 +77,35 @@
           if (!res.ok) return;
           const data = await res.json();
           
-          // Update values
-          document.getElementById('roi-savings').innerText = `$${data.totalDollarsSaved.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          document.getElementById('roi-velocity').innerText = `${data.avgProcessingVelocityReductionPercent}%`;
-          document.getElementById('roi-ai-cost').innerText = `$${data.costPerTicket.toFixed(2)}`;
+          // Update savings card with zero-state awareness
+          const savingsEl = document.getElementById('roi-savings');
+          const subtextEl = document.getElementById('roi-savings-subtext');
+          const baselineEl = document.getElementById('roi-savings-baseline');
+          savingsEl.innerText = `$${data.totalDollarsSaved.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          if (data.totalDollarsSaved > 0) {
+            subtextEl.style.display = 'none';
+            baselineEl.style.display = 'inline';
+          } else {
+            subtextEl.style.display = 'inline';
+            baselineEl.style.display = 'none';
+          }
+
+          // Update velocity card — show dash when no resolved tickets exist
+          const velocityEl = document.getElementById('roi-velocity');
+          if (data.resolvedCount > 0 && data.avgProcessingVelocityReductionPercent > 0) {
+            velocityEl.innerText = `${data.avgProcessingVelocityReductionPercent}%`;
+          } else {
+            velocityEl.innerText = '—';
+          }
+
+          // Update cost card — show dash when no resolved tickets exist
+          const costEl = document.getElementById('roi-ai-cost');
+          if (data.resolvedCount > 0 && data.costPerTicket > 0) {
+            costEl.innerText = `$${data.costPerTicket.toFixed(3)}`;
+          } else {
+            costEl.innerText = '—';
+          }
+
           document.getElementById('roi-last-updated').innerText = `Last updated: ${new Date().toLocaleTimeString()}`;
           
           // Render debate logs

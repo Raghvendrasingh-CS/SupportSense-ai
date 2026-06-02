@@ -1,3 +1,4 @@
+import { jest, describe, test, expect } from '@jest/globals';
 import { checkRole } from '../middleware/auth.js';
 
 describe('RBAC Middleware Unit Tests', () => {
