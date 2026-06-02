@@ -1,26 +1,33 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "framework": null,
   "installCommand": "npm install && cd server && npm install && cd ../client && npm install",
-  "buildCommand": "cd client && npm run build",
-  "outputDirectory": "client/dist",
+  "builds": [
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "client/package.json",
+      "use": "@vercel/static-build"
+    }
+  ],
   "routes": [
     {
       "src": "/openapi.json",
-      "dest": "/server/index.js"
+      "dest": "/api/index.js"
     },
     {
       "src": "/ai-plugin.json",
-      "dest": "/server/index.js"
+      "dest": "/api/index.js"
     },
     {
       "src": "/.well-known/ai-plugin.json",
-      "dest": "/server/index.js"
+      "dest": "/api/index.js"
     },
     {
       "src": "/api/(.*)",
-      "dest": "/server/index.js"
+      "dest": "/api/index.js"
     },
     {
       "src": "/(.*)",
@@ -28,7 +35,7 @@
     }
   ],
   "functions": {
-    "server/index.js": {
+    "api/index.js": {
       "memory": 1024,
       "maxDuration": 30,
       "includeFiles": "server/**"
