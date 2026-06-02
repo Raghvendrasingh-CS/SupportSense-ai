@@ -1,36 +1,51 @@
 import fs from 'fs/promises';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
 import { log, logError } from './logger.js';
+import { hashString } from './hash.js';
 
 const MODULE = 'AuditLogger';
 const AUDIT_LOG_DIR = path.join(process.cwd(), 'data', 'audit_logs');
 
-// Ensure directory exists synchronously on load
-try {
-  if (!existsSync(AUDIT_LOG_DIR)) {
-    mkdirSync(AUDIT_LOG_DIR, { recursive: true });
-    log(MODULE, `Created audit log directory at ${AUDIT_LOG_DIR}`);
+// Detect restricted environments where file-based audit logs will fail
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.NETLIFY ||
+  process.env.AZURE_FUNCTIONS_ENVIRONMENT
+);
+
+// In-memory audit log cache — used on serverless or when file system is unavailable
+const auditLogCache = new Map();
+let useFilesystem = !isServerless;
+
+// Ensure directory exists synchronously on load (skip on serverless)
+if (useFilesystem) {
+  try {
+    if (!existsSync(AUDIT_LOG_DIR)) {
+      mkdirSync(AUDIT_LOG_DIR, { recursive: true });
+      log(MODULE, `Created audit log directory at ${AUDIT_LOG_DIR}`);
+    }
+    // Verify write access with a probe file
+    const probe = path.join(AUDIT_LOG_DIR, '.write_probe');
+    writeFileSync(probe, '', 'utf8');
+    fs.unlink(probe).catch(() => {});
+  } catch (error) {
+    logError(MODULE, 'Filesystem unavailable for audit logs, using in-memory cache', error);
+    useFilesystem = false;
   }
-} catch (error) {
-  logError(MODULE, 'Failed to create audit log directory', error);
 }
 
-function hashString(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = str.charCodeAt(i) + ((h << 5) - h);
-  }
-  return Math.abs(h);
+if (!useFilesystem) {
+  log(MODULE, 'Audit logs will be stored in process memory (ephemeral mode).');
 }
 
 /**
- * Write audit log asynchronously.
+ * Write audit log — persists to filesystem when available, otherwise caches in-memory.
  */
 export async function logAuditTrace(ticketId, pipelineData) {
   try {
     const timestamp = new Date().toISOString();
-    const logPath = path.join(AUDIT_LOG_DIR, `${ticketId}.json`);
 
     // Extract dynamic LLM token counts or simulate deterministically
     const triageTokens = pipelineData.triage?.tokenUsage || 
@@ -80,42 +95,67 @@ export async function logAuditTrace(ticketId, pipelineData) {
         triage: triageTokens,
         resolution: resolutionTokens,
         total: {
-          promptTokens: triageTokens.promptTokens + resolutionTokens.promptTokens,
-          completionTokens: triageTokens.completionTokens + resolutionTokens.completionTokens,
-          totalTokens: triageTokens.totalTokens + resolutionTokens.totalTokens
+          promptTokens: (triageTokens.promptTokens || 0) + (resolutionTokens.promptTokens || 0),
+          completionTokens: (triageTokens.completionTokens || 0) + (resolutionTokens.completionTokens || 0),
+          totalTokens: (triageTokens.totalTokens || 0) + (resolutionTokens.totalTokens || 0)
         }
       },
       performance: systemMetrics,
       consensusReasoning: pipelineData.reasoning?.summary || 'Standard processing reasoning chain applied.'
     };
 
-    // Write trace to disk. Immutable: do not allow overwriting if it already exists.
-    if (existsSync(logPath)) {
-      log(MODULE, `Audit log for ${ticketId} already exists. Skipping to maintain immutability.`);
-      return;
+    if (useFilesystem) {
+      // Persist to disk — immutable: do not overwrite existing traces
+      const logPath = path.join(AUDIT_LOG_DIR, `${ticketId}.json`);
+      if (existsSync(logPath)) {
+        log(MODULE, `Audit log for ${ticketId} already exists. Skipping to maintain immutability.`);
+        return;
+      }
+      await fs.writeFile(logPath, JSON.stringify(auditData, null, 2), 'utf8');
+      log(MODULE, `Audit trace successfully written to disk for ${ticketId}`);
+    } else {
+      // Store in memory cache (immutable — skip if already present)
+      if (auditLogCache.has(ticketId)) {
+        log(MODULE, `Audit log for ${ticketId} already cached. Skipping to maintain immutability.`);
+        return;
+      }
+      auditLogCache.set(ticketId, auditData);
+      log(MODULE, `Audit trace cached in memory for ${ticketId} (${auditLogCache.size} total entries)`);
     }
-
-    await fs.writeFile(logPath, JSON.stringify(auditData, null, 2), 'utf8');
-    log(MODULE, `Audit trace successfully written to disk for ${ticketId}`);
   } catch (error) {
     logError(MODULE, `Failed to write audit trace for ${ticketId}`, error);
   }
 }
 
 /**
- * Retrieve all audit log traces (for compliance auditors).
+ * Retrieve all audit log traces (for compliance auditors and ROI dashboard).
+ * Reads from filesystem or in-memory cache depending on environment.
  */
 export async function getAuditLogs() {
   try {
-    const files = await fs.readdir(AUDIT_LOG_DIR);
-    const logs = [];
+    let logs = [];
 
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        const filePath = path.join(AUDIT_LOG_DIR, file);
-        const content = await fs.readFile(filePath, 'utf8');
-        logs.push(JSON.parse(content));
+    if (useFilesystem) {
+      // Check if directory exists before reading
+      if (!existsSync(AUDIT_LOG_DIR)) {
+        return [];
       }
+      const files = await fs.readdir(AUDIT_LOG_DIR);
+
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          try {
+            const filePath = path.join(AUDIT_LOG_DIR, file);
+            const content = await fs.readFile(filePath, 'utf8');
+            logs.push(JSON.parse(content));
+          } catch (parseErr) {
+            logError(MODULE, `Failed to parse audit log file ${file}`, parseErr);
+          }
+        }
+      }
+    } else {
+      // Read from in-memory cache
+      logs = Array.from(auditLogCache.values());
     }
 
     // Sort by timestamp descending
@@ -131,12 +171,16 @@ export async function getAuditLogs() {
  */
 export async function getAuditLogByTicket(ticketId) {
   try {
-    const filePath = path.join(AUDIT_LOG_DIR, `${ticketId}.json`);
-    if (!existsSync(filePath)) {
-      return null;
+    if (useFilesystem) {
+      const filePath = path.join(AUDIT_LOG_DIR, `${ticketId}.json`);
+      if (!existsSync(filePath)) {
+        return null;
+      }
+      const content = await fs.readFile(filePath, 'utf8');
+      return JSON.parse(content);
+    } else {
+      return auditLogCache.get(ticketId) || null;
     }
-    const content = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(content);
   } catch (error) {
     logError(MODULE, `Failed to retrieve audit log for ticket ${ticketId}`, error);
     return null;

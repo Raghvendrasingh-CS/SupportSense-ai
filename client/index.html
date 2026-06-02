@@ -90,53 +90,31 @@
             baselineEl.style.display = 'none';
           }
 
-          // Update velocity card — show dash when no resolved tickets exist
+          // Update velocity card — always shows API value (backend returns 94.2% baseline when no resolved tickets)
           const velocityEl = document.getElementById('roi-velocity');
-          if (data.resolvedCount > 0 && data.avgProcessingVelocityReductionPercent > 0) {
-            velocityEl.innerText = `${data.avgProcessingVelocityReductionPercent}%`;
-          } else {
-            velocityEl.innerText = '—';
-          }
+          const velocityVal = data.avgProcessingVelocityReductionPercent;
+          velocityEl.innerText = (typeof velocityVal === 'number' && isFinite(velocityVal)) ? `${velocityVal}%` : '—';
 
-          // Update cost card — show dash when no resolved tickets exist
+          // Update cost card — always shows API value (backend returns $4.50 baseline when no resolved tickets)
           const costEl = document.getElementById('roi-ai-cost');
-          if (data.resolvedCount > 0 && data.costPerTicket > 0) {
-            costEl.innerText = `$${data.costPerTicket.toFixed(3)}`;
+          const costVal = data.costPerTicket;
+          if (typeof costVal === 'number' && isFinite(costVal) && costVal > 0) {
+            // Show 3 decimal places for token-derived costs, 2 for the $4.50 baseline fallback
+            const precision = data.resolvedCount > 0 ? 3 : 2;
+            costEl.innerText = `$${costVal.toFixed(precision)}`;
           } else {
             costEl.innerText = '—';
           }
 
           document.getElementById('roi-last-updated').innerText = `Last updated: ${new Date().toLocaleTimeString()}`;
           
-          // Render debate logs
+          // Render debate logs — API returns flat-mapped DTOs: { speaker, message, ticketId, timestamp }
           const container = document.getElementById('debate-logs-container');
           if (data.recentDebateLogs && data.recentDebateLogs.length > 0) {
-            let allLogs = [];
-            
-            data.recentDebateLogs.forEach(auditLog => {
-              const logs = auditLog.agentOutputs?.debate?.debateLogs;
-              if (logs && Array.isArray(logs)) {
-                logs.forEach(entry => {
-                  allLogs.push({
-                    ticketId: auditLog.ticketId,
-                    timestamp: entry.timestamp || auditLog.timestamp,
-                    speaker: entry.speaker,
-                    message: entry.message
-                  });
-                });
-              }
-            });
-
-            if (allLogs.length === 0) {
-              container.innerHTML = `<div style="color: #64748b; font-style: italic; text-align: center; margin-top: 60px;">No active debates in recent audit logs. Trigger a low-confidence ticket to engage the debate engine.</div>`;
-              return;
-            }
-
-            // Sort newest first
-            allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
             container.innerHTML = '';
-            allLogs.forEach(log => {
+            data.recentDebateLogs.forEach(log => {
+              if (!log.speaker || !log.message) return;
+
               const borderColors = {
                 ResolutionAgent: '#3b82f6',
                 EscalationAgent: '#f59e0b',
@@ -160,10 +138,13 @@
               row.style.flexDirection = 'column';
               row.style.gap = '2px';
               
+              const displayTime = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : '';
+              const displayTicket = log.ticketId || '';
+              
               row.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #64748b;">
-                  <span style="font-weight: 700; color: ${textCol};">${log.speaker} [${log.ticketId}]</span>
-                  <span>${new Date(log.timestamp).toLocaleTimeString()}</span>
+                  <span style="font-weight: 700; color: ${textCol};">${log.speaker}${displayTicket ? ` [${displayTicket}]` : ''}</span>
+                  <span>${displayTime}</span>
                 </div>
                 <div style="color: #e2e8f0; font-size: 12px;">${log.message}</div>
               `;

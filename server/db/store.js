@@ -2,19 +2,38 @@ import fs from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-// Storage architecture: Primary = SQLite with WAL journal mode (concurrent-safe, handles parallel batch processing).
-// Fallback = JSON file (used only if SQLite native bindings unavailable in environment).
-// SQLite WAL mode enables concurrent reads and serialized writes — no race conditions under parallel ticket processing.
-// The JSON fallback is intentionally simple as it is only reached in constrained environments where concurrency is not a concern.
+// Storage architecture (3-tier resilient cascade):
+// 1. Primary:    SQLite with WAL journal mode (file-based, concurrent-safe, handles parallel batch processing).
+// 2. Secondary:  SQLite in-memory (:memory:) — used on serverless/write-restricted platforms (Vercel, Lambda, etc.).
+// 3. Tertiary:   JSON file store — used if better-sqlite3 native bindings are unavailable.
+// 4. Ultimate:   Process-memory cache — used if file system is completely inaccessible.
+//
+// Environment detection:
+//   - process.env.VERCEL, process.env.AWS_LAMBDA_FUNCTION_NAME, process.env.RENDER → serverless mode
+//   - File write permission test → determines file vs. memory SQLite
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const DB_FILE = join(__dirname, 'data.json');
 const SQLITE_FILE = join(__dirname, 'supportsense.db');
 
-// Ensure database directory exists
-if (!fs.existsSync(__dirname)) {
-  fs.mkdirSync(__dirname, { recursive: true });
+// Detect restricted environments where file-based SQLite will fail
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.NETLIFY ||
+  process.env.AZURE_FUNCTIONS_ENVIRONMENT
+);
+
+// Ensure database directory exists (skip on serverless)
+if (!isServerless) {
+  try {
+    if (!fs.existsSync(__dirname)) {
+      fs.mkdirSync(__dirname, { recursive: true });
+    }
+  } catch (dirErr) {
+    console.warn('[DBStore] Cannot create database directory:', dirErr.message);
+  }
 }
 
 // Default DB schema
@@ -23,9 +42,30 @@ const defaultDb = {
   memory: {}
 };
 
+// In-process memory cache — ultimate fallback when both SQLite and JSON are unavailable
+const memoryCache = {
+  tickets: [],
+  memory: {}
+};
+let useMemoryCache = false;
+
+// Determine if the file system is writable
+function isFileSystemWritable() {
+  if (isServerless) return false;
+  try {
+    const testFile = join(__dirname, '.write_test_' + Date.now());
+    fs.writeFileSync(testFile, 'test', 'utf8');
+    fs.unlinkSync(testFile);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Fallback JSON-based store methods
 function readJsonDb() {
   try {
+    if (useMemoryCache) return { ...memoryCache };
     if (!fs.existsSync(DB_FILE)) {
       writeJsonDb(defaultDb);
       return defaultDb;
@@ -33,16 +73,24 @@ function readJsonDb() {
     const data = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
-    console.error('[DBStore] Read JSON failed, using schema default:', error);
-    return defaultDb;
+    console.error('[DBStore] Read JSON failed, using schema default:', error.message);
+    return { ...defaultDb };
   }
 }
 
 function writeJsonDb(data) {
   try {
+    if (useMemoryCache) {
+      memoryCache.tickets = data.tickets || [];
+      memoryCache.memory = data.memory || {};
+      return;
+    }
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (error) {
-    console.error('[DBStore] Write JSON failed:', error);
+    console.error('[DBStore] Write JSON failed, caching in memory:', error.message);
+    useMemoryCache = true;
+    memoryCache.tickets = data.tickets || [];
+    memoryCache.memory = data.memory || {};
   }
 }
 
@@ -53,7 +101,16 @@ let useSqlite = false;
 try {
   // Try importing better-sqlite3
   const { default: Database } = await import('better-sqlite3');
-  sqliteDb = new Database(SQLITE_FILE);
+
+  // Choose file-based or in-memory SQLite based on environment
+  const writable = isFileSystemWritable();
+  const dbTarget = (isServerless || !writable) ? ':memory:' : SQLITE_FILE;
+
+  if (dbTarget === ':memory:') {
+    console.log('[DBStore] Serverless/read-only environment detected — using in-memory SQLite.');
+  }
+
+  sqliteDb = new Database(dbTarget);
   sqliteDb.pragma('journal_mode = WAL');
   sqliteDb.pragma('foreign_keys = ON');
 
@@ -112,14 +169,22 @@ try {
   `).run();
 
   useSqlite = true;
-  console.log('[DBStore] SQLite database initialized successfully.');
+  console.log(`[DBStore] SQLite database initialized successfully (${dbTarget === ':memory:' ? 'in-memory' : 'file-based'}).`);
 
-  // Auto-migration check
-  initializeFromJson();
+  // Auto-migration check (only when file-based)
+  if (dbTarget !== ':memory:') {
+    initializeFromJson();
+  }
   seedSimulationTables();
 } catch (error) {
-  console.warn('[DBStore] SQLite initialization failed (possibly missing native bindings), falling back to JSON store:', error.message);
+  console.warn('[DBStore] SQLite initialization failed, falling back to JSON/memory store:', error.message);
   useSqlite = false;
+
+  // If file system is not writable, activate in-memory cache
+  if (isServerless || !isFileSystemWritable()) {
+    useMemoryCache = true;
+    console.log('[DBStore] File system unavailable — using process-memory cache.');
+  }
 }
 
 function seedSimulationTables() {
