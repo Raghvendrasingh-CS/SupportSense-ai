@@ -1,7 +1,6 @@
 import pg from 'pg';
 
 const { Pool } = pg;
-
 const MODULE = 'DBStore';
 
 // Initialize PostgreSQL connection pool
@@ -29,6 +28,7 @@ if (process.env.DATABASE_URL) {
 async function initializeTables() {
   if (!pool) return;
   try {
+    // Note: Use individual queries for better reliability in some PG drivers
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tickets (
         id TEXT PRIMARY KEY,
@@ -36,20 +36,26 @@ async function initializeTables() {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
-
+    `);
+    
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS memory (
         email TEXT PRIMARY KEY,
         data JSONB NOT NULL,
         updated_at TIMESTAMP DEFAULT NOW()
       );
+    `);
 
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id TEXT PRIMARY KEY,
         ticket_id TEXT,
         data JSONB NOT NULL,
         created_at TIMESTAMP DEFAULT NOW()
       );
+    `);
 
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS knowledge_base (
         id TEXT PRIMARY KEY,
         title TEXT,
@@ -57,7 +63,9 @@ async function initializeTables() {
         content TEXT,
         relevance_score REAL
       );
+    `);
 
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS resolved_tickets (
         id TEXT PRIMARY KEY,
         subject TEXT,
@@ -66,22 +74,28 @@ async function initializeTables() {
         similarity REAL,
         category TEXT
       );
+    `);
 
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS ticket_volume_daily (
         date TEXT PRIMARY KEY,
         ticket_count INTEGER
       );
+    `);
 
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS category_breakdown (
         category TEXT PRIMARY KEY,
         count INTEGER,
         avg_resolution_hours REAL
       );
     `);
+
     console.log(`[${MODULE}] Tables initialized successfully.`);
     await seedTables();
   } catch (err) {
     console.error(`[${MODULE}] Table initialization failed:`, err.message);
+    // Don't kill the process, just fallback to memory so the UI still loads
     useMemoryCache = true;
   }
 }
@@ -150,8 +164,14 @@ async function seedTables() {
   }
 }
 
-// Initialize on startup
-await initializeTables();
+// SAFE INITIALIZATION: Wrap in an IIFE to avoid top-level await issues
+(async () => {
+  try {
+    await initializeTables();
+  } catch (err) {
+    console.error(`[${MODULE}] Critical boot error:`, err);
+  }
+})();
 
 export const db = {
   getTickets: async () => {
