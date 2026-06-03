@@ -1,50 +1,47 @@
-import { Router } from 'express';
-import { db } from '../db/store.js';
-import { measureStart, measureEnd } from '../utils/logger.js';
-import { createTicket, processTicket } from '../pipeline/supportPipeline.js';
+import pg from 'pg';
+const { Pool } = pg;
+const MODULE = 'DBStore';
 
-const router = Router();
+let pool = null;
+let useMemoryCache = false;
 
-router.get('/health', (req, res) => res.json({ status: 'online' }));
+if (process.env.DATABASE_URL) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+} else {
+  useMemoryCache = true;
+}
 
-router.get('/analytics', async (req, res) => {
-  const start = measureStart();
-  try {
-    const stats = await db.getAnalytics();
-    const tickets = await db.getTickets();
-    
-    // Calculate real-time metrics
-    const total = tickets.length || 100; // Fallback for demo
-    const resolved = tickets.filter(t => t.status === 'resolved').length || 65;
-    
-    res.json({
-      analytics: {
-        dailyVolume: stats.dailyStats,
-        categoryDistribution: stats.categories,
-        deflectionRate: Math.round((resolved / total) * 100),
-        activeAgents: 5
-      },
-      processingTimeMs: measureEnd(start)
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+export const db = {
+  getTickets: async () => {
+    if (useMemoryCache) return [];
+    try {
+      const res = await pool.query('SELECT data FROM tickets ORDER BY created_at DESC');
+      return res.rows.map(r => r.data);
+    } catch (e) { return []; }
+  },
+  
+  saveTicket: async (t) => {
+    if (useMemoryCache) return;
+    await pool.query('INSERT INTO tickets (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [t.id, t]);
+  },
+
+  getAnalytics: async () => {
+    if (useMemoryCache) return { dailyVolume: [], categoryDistribution: [] };
+    try {
+      // Mapping database rows to frontend-friendly keys
+      const vol = await pool.query('SELECT date as name, ticket_count as value FROM ticket_volume_daily ORDER BY date ASC');
+      const cat = await pool.query('SELECT category as name, count as value FROM category_breakdown');
+      
+      return { 
+        dailyVolume: vol.rows, 
+        categoryDistribution: cat.rows 
+      };
+    } catch (e) { 
+      console.error("Analytics DB Error", e.message);
+      return { dailyVolume: [], categoryDistribution: [] }; 
+    }
   }
-});
-
-router.get('/tickets', async (req, res) => {
-  const tickets = await db.getTickets();
-  res.json({ tickets });
-});
-
-router.post('/tickets', async (req, res) => {
-  try {
-    const ticket = createTicket(req.body);
-    await db.saveTicket(ticket);
-    const result = await processTicket(ticket, req.app.get('emitFn'));
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-export default router;
+};
