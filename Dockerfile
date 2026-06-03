@@ -2,7 +2,6 @@
 FROM node:18-alpine AS client-build
 WORKDIR /app/client
 COPY client/package*.json ./
-# Changed npm ci to npm install
 RUN npm install
 COPY client/ ./
 RUN VITE_SOCKET_URL=https://supportsense-ai-production.up.railway.app npm run build
@@ -13,11 +12,8 @@ WORKDIR /app
 
 # Copy server
 COPY server/package*.json ./server/
-# Changed npm ci to npm install --omit=dev
 RUN cd server && npm install --omit=dev
 COPY server/ ./server/
-# Keeping this but Supabase will now take over as primary store
-RUN cd server && (npm install better-sqlite3 --build-from-source || echo "SQLite native build failed, JSON fallback will be used")
 
 # Copy built client
 COPY --from=client-build /app/client/dist ./client/dist
