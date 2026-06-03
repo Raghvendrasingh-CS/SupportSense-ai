@@ -13,11 +13,10 @@
     "dotenv": "^16.3.1",
     "pg": "^8.11.0",
     "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
     "openai": "^4.20.1",
     "socket.io": "^4.7.2",
-    "axios": "^1.6.2",
-    "better-sqlite3": "^9.0.0",
-    "morgan": "^1.10.0"
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
