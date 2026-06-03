@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 const MODULE = 'useSocket';
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+const SOCKET_URL = window.location.origin;
 
 export function useSocket() {
   const socketRef = useRef(null);
@@ -23,7 +23,7 @@ export function useSocket() {
       console.log(`[${MODULE}] ${new Date().toISOString()} Connecting to ${SOCKET_URL}`);
       const apiKey = import.meta.env.VITE_DEMO_API_KEY || 'demo-key';
       const socket = io(SOCKET_URL, {
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
         auth: { token: apiKey }
       });
       socketRef.current = socket;
