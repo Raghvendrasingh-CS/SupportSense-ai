@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 const MODULE = 'useSocket';
-const SOCKET_URL = window.location.origin;
+const SOCKET_URL = 'https://supportsense-ai-production.up.railway.app';
 
 export function useSocket() {
   const socketRef = useRef(null);
