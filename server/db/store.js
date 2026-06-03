@@ -25,22 +25,18 @@ export const db = {
   
   saveTicket: async (t) => {
     if (useMemoryCache) return;
-    await pool.query('INSERT INTO tickets (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [t.id, t]);
+    try {
+      await pool.query('INSERT INTO tickets (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [t.id, t]);
+    } catch (e) { console.error(e.message); }
   },
 
   getAnalytics: async () => {
     if (useMemoryCache) return { dailyVolume: [], categoryDistribution: [] };
     try {
-      // Mapping database rows to frontend-friendly keys
       const vol = await pool.query('SELECT date as name, ticket_count as value FROM ticket_volume_daily ORDER BY date ASC');
       const cat = await pool.query('SELECT category as name, count as value FROM category_breakdown');
-      
-      return { 
-        dailyVolume: vol.rows, 
-        categoryDistribution: cat.rows 
-      };
+      return { dailyVolume: vol.rows, categoryDistribution: cat.rows };
     } catch (e) { 
-      console.error("Analytics DB Error", e.message);
       return { dailyVolume: [], categoryDistribution: [] }; 
     }
   }
