@@ -15,6 +15,7 @@ import MemoryPanel from './components/MemoryPanel';
 import DemoGuide from './components/DemoGuide';
 
 const MODULE = 'App';
+const APP_VERSION = '2.0.1';
 
 export default function App() {
   const [tickets, setTickets] = useState([]);
