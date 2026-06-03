@@ -4,9 +4,7 @@ WORKDIR /app/client
 COPY client/package*.json ./
 RUN npm ci
 COPY client/ ./
-ARG VITE_SOCKET_URL
-ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
-RUN npm run build
+RUN VITE_SOCKET_URL=https://supportsense-ai-production.up.railway.app npm run build
 
 # Stage 2: Production server
 FROM node:18-alpine AS production
@@ -25,10 +23,9 @@ COPY --from=client-build /app/client/dist ./client/dist
 COPY .env.example ./.env.example
 
 ENV NODE_ENV=production
-ENV PORT=3001
-EXPOSE 3001
+EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3001/api/health || exit 1
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
 
 CMD ["node", "server/index.js"]
