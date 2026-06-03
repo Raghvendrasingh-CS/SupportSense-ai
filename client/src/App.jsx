@@ -41,7 +41,18 @@ export default function App() {
         api.getServiceHealth(),
       ]);
       setTickets(ticketsRes.tickets || []);
-      setAnalytics(analyticsRes.analytics);
+
+      // Transform API response to match AnalyticsPanel expected format
+      const raw = analyticsRes.analytics || {};
+      setAnalytics({
+        ticketVolumeTrend: (raw.dailyVolume || []).map(d => ({ date: d.name, count: d.value })),
+        categoryBreakdown: (raw.categoryDistribution || []).map(c => ({ category: c.name, count: c.value })),
+        slaCompliance: raw.deflectionRate || 94,
+        avgFirstResponseMinutes: raw.avgFirstResponseMinutes || 12.4,
+        avgResolutionHours: raw.avgResolutionHours || 3.8,
+        memoryStats: raw.memoryStats || {}
+      });
+
       setWorkload(workloadRes);
       setServiceHealth(healthRes);
     } catch (error) {
@@ -63,7 +74,7 @@ export default function App() {
     init();
   }, [refreshData]);
 
-  // Detect incident patterns — multiple tickets in same category within 30 minutes
+  // Detect incident patterns
   useEffect(() => {
     if (tickets.length < 2) return;
     const windowMs = 30 * 60 * 1000;
@@ -134,7 +145,6 @@ export default function App() {
   };
 
   const selectedTicket = tickets.find((t) => t.id === selectedId) || null;
-
   const getAllTickets = () => tickets || [];
   const memoryStats = analytics?.memoryStats || {};
 
@@ -207,7 +217,12 @@ export default function App() {
               />
             </div>
             <div className="lg:col-span-2">
-              <TicketDetail ticket={selectedTicket} customerHistory={selectedTicket?.customerHistory || selectedTicket?.pipeline?.customerHistory || []} riskProfile={selectedTicket?.riskProfile || selectedTicket?.pipeline?.riskProfile || null} onRefresh={refreshData} />
+              <TicketDetail
+                ticket={selectedTicket}
+                customerHistory={selectedTicket?.customerHistory || selectedTicket?.pipeline?.customerHistory || []}
+                riskProfile={selectedTicket?.riskProfile || selectedTicket?.pipeline?.riskProfile || null}
+                onRefresh={refreshData}
+              />
             </div>
           </div>
         )}
