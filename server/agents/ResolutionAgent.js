@@ -156,7 +156,7 @@ async function generateResolutionWithLLM(ticket, triageResult, kbArticles) {
   }
 }
 
-function buildResolutionFromTemplate(category, kbArticles, similarTickets) {
+function buildResolutionFromTemplate(category, kbArticles, similarTickets,triageResult) {
   const template = RESOLUTION_TEMPLATES[category] || RESOLUTION_TEMPLATES.General;
   const steps = [...template.steps];
 
@@ -223,7 +223,7 @@ export async function resolveTicket(ticket, triageResult, emitFn = null) {
       });
     }
 
-    const templateResolution = buildResolutionFromTemplate(category, kbArticles, similarTickets);
+    const templateResolution = buildResolutionFromTemplate(category, kbArticles, similarTickets, triageResult);
 
     const resolution = llmResolution || templateResolution;
 
