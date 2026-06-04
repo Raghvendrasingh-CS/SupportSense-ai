@@ -168,7 +168,9 @@ function buildResolutionFromTemplate(category, kbArticles, similarTickets) {
     steps.push(`Previous similar ticket ${similarTickets[0].id} was resolved by: ${similarTickets[0].resolution}`);
   }
 
-  const canAutoResolve = template.automatedFixes.length > 0 && kbArticles.some((a) => a.relevanceScore > 0.85);
+  const canAutoResolve = template.automatedFixes.length > 0 && 
+  (kbArticles.some((a) => a.relevanceScore > 0.85) || 
+  ['Identity', 'General'].includes(category) && triageResult.classification.priority === 'low');
 
   return {
     resolutionSummary: `Standard ${category} troubleshooting procedure with ${kbArticles.length} KB matches and ${similarTickets.length} similar tickets`,
