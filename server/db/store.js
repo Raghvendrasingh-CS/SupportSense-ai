@@ -61,7 +61,6 @@ async function initializeTables() {
     `);
     console.log(`[${MODULE}] Tables initialized.`);
     await seedTables();
-    // Load tickets into memory cache
     const res = await pool.query('SELECT data FROM tickets ORDER BY created_at DESC');
     ticketCache = res.rows.map(r => r.data);
     const memRes = await pool.query('SELECT email, data FROM memory');
@@ -126,7 +125,6 @@ async function seedTables() {
 
 await initializeTables();
 
-// Async write to Supabase in background
 async function persistTicket(ticket) {
   if (!pool) return;
   try {
@@ -156,12 +154,10 @@ async function persistMemory(email, data) {
 }
 
 export const db = {
-  // SYNC methods — used by pipeline
   getTickets: () => ticketCache,
 
   saveTickets: (tickets) => {
     ticketCache = tickets;
-    // Persist each ticket to Supabase async
     tickets.forEach(t => persistTicket(t).catch(console.error));
   },
 
@@ -181,7 +177,6 @@ export const db = {
     );
   },
 
-  // ASYNC methods — used by API routes
   getTicketsAsync: async () => {
     if (!pool) return ticketCache;
     try {
@@ -199,6 +194,7 @@ export const db = {
     if (pool) {
       try {
         await pool.query('DELETE FROM tickets');
+        console.log(`[${MODULE}] All tickets cleared from Supabase.`);
       } catch (e) {
         console.error(`[${MODULE}] clearTickets failed:`, e.message);
       }
