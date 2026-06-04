@@ -39,14 +39,15 @@ export function useSocket() {
       });
 
       const eventTypes = [
-        'connection:established',
-        'pipeline:started', 'pipeline:completed', 'pipeline:error',
-        'triage:started', 'triage:completed', 'triage:error',
-        'resolution:started', 'resolution:completed', 'resolution:error',
-        'escalation:started', 'escalation:completed', 'escalation:error',
-        'batch:started', 'batch:completed',
-        'reasoning:step', 'incident:detected'
-      ];
+  'connection:established',
+  'pipeline:started', 'pipeline:completed', 'pipeline:error',
+  'triage:started', 'triage:completed', 'triage:error',
+  'resolution:started', 'resolution:completed', 'resolution:error',
+  'escalation:started', 'escalation:completed', 'escalation:error',
+  'debate:initiated', 'debate:started', 'debate:round',
+  'batch:started', 'batch:completed',
+  'reasoning:step', 'incident:detected'
+];
 
       eventTypes.forEach((eventName) => {
         socket.on(eventName, (data) => addEvent(eventName, data));
