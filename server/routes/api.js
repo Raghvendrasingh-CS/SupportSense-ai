@@ -5,12 +5,10 @@ import { getMemoryStats } from '../agents/ticketMemory.js';
 
 const router = Router();
 
-// Health check
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Config
 router.get('/config', (req, res) => {
   res.json({
     demoMode: process.env.DEMO_MODE === 'true',
@@ -19,7 +17,6 @@ router.get('/config', (req, res) => {
   });
 });
 
-// Analytics
 router.get('/analytics', async (req, res) => {
   try {
     const stats = await db.getAnalytics() || {};
@@ -45,7 +42,6 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
-// Analytics ROI
 router.get('/analytics/roi', async (req, res) => {
   try {
     const tickets = db.getTickets() || [];
@@ -62,7 +58,6 @@ router.get('/analytics/roi', async (req, res) => {
   }
 });
 
-// Get all tickets
 router.get('/tickets', async (req, res) => {
   try {
     const tickets = await db.getTicketsAsync();
@@ -72,7 +67,6 @@ router.get('/tickets', async (req, res) => {
   }
 });
 
-// Get single ticket
 router.get('/tickets/:id', async (req, res) => {
   try {
     const tickets = db.getTickets();
@@ -84,7 +78,6 @@ router.get('/tickets/:id', async (req, res) => {
   }
 });
 
-// Create ticket
 router.post('/tickets', async (req, res) => {
   try {
     const emitFn = req.app.get('emitFn');
@@ -109,7 +102,6 @@ router.post('/tickets', async (req, res) => {
   }
 });
 
-// Update ticket (PATCH) — used by Accept & Assign, Reassign buttons
 router.patch('/tickets/:id', async (req, res) => {
   try {
     const tickets = db.getTickets();
@@ -123,7 +115,6 @@ router.patch('/tickets/:id', async (req, res) => {
   }
 });
 
-// Process specific ticket
 router.post('/tickets/:id/process', async (req, res) => {
   try {
     const emitFn = req.app.get('emitFn');
@@ -137,11 +128,15 @@ router.post('/tickets/:id/process', async (req, res) => {
   }
 });
 
-// Demo seed
 router.post('/demo/seed', async (req, res) => {
   try {
     const emitFn = req.app.get('emitFn');
+
+    // Clear existing tickets from both cache and Supabase
     await db.clearTickets();
+
+    // Wait for Supabase DELETE to complete before inserting
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     const demoTickets = [
       {
@@ -187,7 +182,6 @@ router.post('/demo/seed', async (req, res) => {
   }
 });
 
-// Agent workload
 router.get('/agents/workload', async (req, res) => {
   try {
     const tickets = await db.getTicketsAsync();
@@ -204,7 +198,6 @@ router.get('/agents/workload', async (req, res) => {
   }
 });
 
-// Service health
 router.get('/services/health', async (req, res) => {
   res.json({
     services: [
@@ -218,7 +211,6 @@ router.get('/services/health', async (req, res) => {
   });
 });
 
-// SLA
 router.get('/sla', async (req, res) => {
   try {
     const tickets = db.getTickets();
@@ -233,16 +225,13 @@ router.get('/sla', async (req, res) => {
   }
 });
 
-// Helper: process batch async
 async function processBatchAsync(tickets, emitFn) {
   try {
     if (emitFn) emitFn('batch:started', { count: tickets.length, timestamp: new Date().toISOString() });
     for (const ticket of tickets) {
       try {
-        const result = await processTicket(ticket, emitFn);
-        // Save updated ticket state after pipeline completes
-        const updatedTickets = db.getTickets();
-        const updated = updatedTickets.find(t => t.id === ticket.id);
+        await processTicket(ticket, emitFn);
+        const updated = db.getTickets().find(t => t.id === ticket.id);
         if (updated) db.saveTicket(updated);
       } catch (e) {
         console.error('Ticket processing error:', e.message);
