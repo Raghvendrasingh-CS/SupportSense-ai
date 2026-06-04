@@ -376,7 +376,9 @@ export function seedDemoTickets() {
   const selectCurated = [
     'ENTIRE SYSTEM DOWN — 200 stores affected — EMERGENCY',
     'Threatening legal action — 4th time reporting data export bug',
-    'How to reset two-factor authentication on new phone'
+    'How to reset two-factor authentication on new phone',
+    'Request for Microsoft 365 usage report for last quarter',
+    'Teams status showing offline even when actively working'
   ];
 
   const dbTickets = db.getTickets();
