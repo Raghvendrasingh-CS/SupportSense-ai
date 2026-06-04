@@ -104,7 +104,7 @@ const RESOLUTION_TEMPLATES = {
 async function generateResolutionWithLLM(ticket, triageResult, kbArticles) {
   const startMs = measureStart();
   try {
-    if (!hasOpenAICredentials()) {
+    if (!hasOpenAICredentials() || config.demoMode) {
       return null;
     }
 
