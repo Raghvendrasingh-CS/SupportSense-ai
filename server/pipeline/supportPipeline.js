@@ -99,7 +99,7 @@ export async function processTicket(ticketData, emitFn = null) {
     const triageResult = await triageTicket(ticket, emitFn);
     log(MODULE, 'TriageAgent finished', { processingTimeMs: measureEnd(triageStart) });
 
-    ticket.priority = triageResult.classification.priority;
+    ticket.priority = ticket.priority || triageResult.classification.priority;
     ticket.category = triageResult.classification.category;
     ticket.updatedAt = new Date().toISOString();
     saveTicket(ticket);
