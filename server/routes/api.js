@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/store.js';
-import { processTicket, processBatch, seedDemoTickets, getAllTickets, createTicket } from '../pipeline/supportPipeline.js';
+import { processTicket, processBatch } from '../pipeline/supportPipeline.js';
 import { getMemoryStats } from '../agents/ticketMemory.js';
 
 const router = Router();
@@ -48,7 +48,7 @@ router.get('/analytics', async (req, res) => {
 // Analytics ROI
 router.get('/analytics/roi', async (req, res) => {
   try {
-    const tickets = await db.getTickets() || [];
+    const tickets = db.getTickets() || [];
     const resolved = tickets.filter(t => t.status === 'resolved').length;
     const totalSaved = resolved * (75 - 4.50);
     res.json({
@@ -75,7 +75,7 @@ router.get('/tickets', async (req, res) => {
 // Get single ticket
 router.get('/tickets/:id', async (req, res) => {
   try {
-    const tickets = await db.getTickets();
+    const tickets = db.getTickets();
     const ticket = tickets.find(t => t.id === req.params.id);
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
     res.json({ ticket });
@@ -88,9 +88,36 @@ router.get('/tickets/:id', async (req, res) => {
 router.post('/tickets', async (req, res) => {
   try {
     const emitFn = req.app.get('emitFn');
-    const ticket = await createTicketAndSave(req.body);
+    const data = req.body;
+    const ticket = {
+      id: `TKT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+      subject: data.subject,
+      description: data.description || '',
+      requesterId: data.requesterId || 'user-001',
+      status: 'received',
+      priority: null,
+      category: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      pipeline: null
+    };
+    db.saveTicket(ticket);
     processTicket(ticket, emitFn).catch(console.error);
     res.json({ ticketId: ticket.id, status: 'processing' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update ticket (PATCH) — used by Accept & Assign, Reassign buttons
+router.patch('/tickets/:id', async (req, res) => {
+  try {
+    const tickets = db.getTickets();
+    const ticket = tickets.find(t => t.id === req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+    Object.assign(ticket, req.body, { updatedAt: new Date().toISOString() });
+    db.saveTicket(ticket);
+    res.json({ success: true, ticket });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -100,7 +127,7 @@ router.post('/tickets', async (req, res) => {
 router.post('/tickets/:id/process', async (req, res) => {
   try {
     const emitFn = req.app.get('emitFn');
-    const tickets = await db.getTickets();
+    const tickets = db.getTickets();
     const ticket = tickets.find(t => t.id === req.params.id);
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
     processTicket(ticket, emitFn).catch(console.error);
@@ -110,15 +137,12 @@ router.post('/tickets/:id/process', async (req, res) => {
   }
 });
 
-// Demo seed — THE MOST IMPORTANT ROUTE
+// Demo seed
 router.post('/demo/seed', async (req, res) => {
   try {
     const emitFn = req.app.get('emitFn');
-
-    // Clear existing tickets
     await db.clearTickets();
 
-    // Create 3 demo tickets
     const demoTickets = [
       {
         subject: 'ENTIRE SYSTEM DOWN — 200 stores affected — EMERGENCY',
@@ -132,7 +156,7 @@ router.post('/demo/seed', async (req, res) => {
       },
       {
         subject: 'How to reset two-factor authentication on new phone',
-        description: 'Got a new phone last week and need to reset two-factor authentication. Old authenticator app is no longer working and cannot log in.',
+        description: 'Got a new phone. How do I reset my 2FA? Please send reset link. No urgency.',
         requesterId: 'michelle.chen@designstudio.com'
       }
     ];
@@ -151,13 +175,11 @@ router.post('/demo/seed', async (req, res) => {
         updatedAt: new Date().toISOString(),
         pipeline: null
       };
-      await db.saveTicket(ticket);
+      db.saveTicket(ticket);
       created.push(ticket);
     }
 
-    // Process all 3 tickets through the pipeline
     processBatchAsync(created, emitFn);
-
     res.json({ status: 'processing', ticketCount: created.length });
   } catch (e) {
     console.error('Demo seed error:', e);
@@ -199,7 +221,7 @@ router.get('/services/health', async (req, res) => {
 // SLA
 router.get('/sla', async (req, res) => {
   try {
-    const tickets = await db.getTickets();
+    const tickets = db.getTickets();
     res.json({
       compliance: 94.2,
       avgResponseMinutes: 12.4,
@@ -211,13 +233,17 @@ router.get('/sla', async (req, res) => {
   }
 });
 
-// Helper: process batch asynchronously without blocking response
+// Helper: process batch async
 async function processBatchAsync(tickets, emitFn) {
   try {
     if (emitFn) emitFn('batch:started', { count: tickets.length, timestamp: new Date().toISOString() });
     for (const ticket of tickets) {
       try {
-        await processTicketAsync(ticket, emitFn);
+        const result = await processTicket(ticket, emitFn);
+        // Save updated ticket state after pipeline completes
+        const updatedTickets = db.getTickets();
+        const updated = updatedTickets.find(t => t.id === ticket.id);
+        if (updated) db.saveTicket(updated);
       } catch (e) {
         console.error('Ticket processing error:', e.message);
       }
@@ -226,20 +252,6 @@ async function processBatchAsync(tickets, emitFn) {
   } catch (e) {
     console.error('Batch processing error:', e.message);
   }
-}
-
-// Helper: process single ticket and save to Supabase
-async function processTicketAsync(ticket, emitFn) {
-  const { processTicket: runPipeline } = await import('../pipeline/supportPipeline.js');
-  const result = await runPipeline(ticket, emitFn);
-
-  // Save final ticket state to Supabase
-  const tickets = await db.getTicketsAsync();
-  const updated = tickets.find(t => t.id === ticket.id);
-  if (updated) {
-    await db.saveTicket(updated);
-  }
-  return result;
 }
 
 export default router;
