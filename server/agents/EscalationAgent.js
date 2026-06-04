@@ -43,7 +43,7 @@ function shouldEscalate(triageResult, resolutionResult) {
     reasons.push({ code: 'MANUAL_REVIEW_REQUIRED', detail: 'Ticket requires human agent review' });
   }
 
-  const escalate = reasons.length > 0 && (priority === 'critical' || priority === 'high' || confidence < 0.7 || resolutionResult.status === 'failed');
+  const escalate = reasons.length > 0 && priority !== 'low' && (priority === 'critical' || priority === 'high' || confidence < 0.7 || resolutionResult.status === 'failed');
 
   return { escalate, reasons };
 }
