@@ -22,7 +22,7 @@ const PRIORITY_SIGNALS = {
   critical: ['down', 'outage', 'cannot work', 'production', 'all users', 'company-wide', 'urgent', 'emergency', 'entire system', 'all stores', '200 stores', 'legal action', 'lawsuit', 'legal team', 'breach', 'unauthorized access', 'security breach', 'hacked', 'data loss', 'immediately', 'asap', 'fourth time', '4th time', 'threatening', 'completely unacceptable'],
   high: ['blocked', 'deadline', 'executive', 'vip', 'cannot access', 'failed', 'third time', '3rd time', 'still not working', 'escalate', 'manager', 'multiple users', 'team blocked', 'finance blocked', 'client facing', '45 employees', '200 invoices', 'stuck for days'],
   medium: ['issue', 'problem', 'error', 'not working', 'help', 'not syncing', 'not appearing', 'not saving', 'not updating', 'failing', 'stuck'],
-  low: ['question', 'how to', 'request', 'enhancement', 'minor', 'report', 'usage report', 'information', 'could you please'],
+  low: ['question', 'how to', 'request', 'enhancement', 'minor', 'report', 'usage report', 'information', 'could you please', 'need to reset', 'new phone', 'reset my', 'how do i'],
 };
 
 function classifyCategory(text) {
