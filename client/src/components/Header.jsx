@@ -30,11 +30,11 @@ export default function Header({ connected, demoMode, onSeedDemo, loading }) {
               </div>
 
               <button
-                onClick={onSeedDemo}
-                disabled={loading}
-                className="px-4 py-2 bg-[#0ea5e9] text-white text-sm font-medium rounded-lg hover:bg-[#0284c7] transition-colors disabled:opacity-50"
+              onClick={onSeedDemo}
+              disabled={loading}
+              className="px-4 py-2 bg-[#0ea5e9] text-white text-sm font-medium rounded-lg hover:bg-[#0284c7] transition-colors disabled:opacity-50"
               >
-                {loading ? 'Processing queue...' : 'Process Ticket Queue'}
+                {loading ? '⚡ Processing...' : '🚀 Run Live Demo'}
               </button>
             </div>
           </div>
