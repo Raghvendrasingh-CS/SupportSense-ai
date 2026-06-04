@@ -5,9 +5,9 @@ const MODULE = 'DebateEngine';
 
 async function callLLM(messages) {
   try {
-    if (!hasOpenAICredentials()) {
-      return null;
-    }
+    if (!hasOpenAICredentials() || config.demoMode) {
+  return null;
+}
 
     const isAzure = Boolean(config.azureOpenai.endpoint && config.azureOpenai.apiKey);
     const url = isAzure
