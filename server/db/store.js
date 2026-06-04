@@ -5,7 +5,9 @@ const MODULE = 'DBStore';
 let pool = null;
 let useMemoryCache = false;
 
-const memoryCache = { tickets: [], memory: {} };
+// In-memory cache for sync pipeline operations
+let ticketCache = [];
+let memoryCache = {};
 
 if (process.env.DATABASE_URL) {
   pool = new Pool({
@@ -59,6 +61,13 @@ async function initializeTables() {
     `);
     console.log(`[${MODULE}] Tables initialized.`);
     await seedTables();
+    // Load tickets into memory cache
+    const res = await pool.query('SELECT data FROM tickets ORDER BY created_at DESC');
+    ticketCache = res.rows.map(r => r.data);
+    const memRes = await pool.query('SELECT email, data FROM memory');
+    memoryCache = {};
+    for (const row of memRes.rows) memoryCache[row.email] = row.data;
+    console.log(`[${MODULE}] Cache loaded: ${ticketCache.length} tickets.`);
   } catch (err) {
     console.error(`[${MODULE}] Table init failed:`, err.message);
     useMemoryCache = true;
@@ -76,7 +85,6 @@ async function seedTables() {
         ON CONFLICT (date) DO NOTHING;
       `);
     }
-
     const catCheck = await pool.query('SELECT COUNT(*) as count FROM category_breakdown');
     if (parseInt(catCheck.rows[0].count) === 0) {
       await pool.query(`
@@ -86,7 +94,6 @@ async function seedTables() {
         ON CONFLICT (category) DO NOTHING;
       `);
     }
-
     const kbCheck = await pool.query('SELECT COUNT(*) as count FROM knowledge_base');
     if (parseInt(kbCheck.rows[0].count) === 0) {
       await pool.query(`
@@ -99,7 +106,6 @@ async function seedTables() {
         ON CONFLICT (id) DO NOTHING;
       `);
     }
-
     const resolvedCheck = await pool.query('SELECT COUNT(*) as count FROM resolved_tickets');
     if (parseInt(resolvedCheck.rows[0].count) === 0) {
       await pool.query(`
@@ -112,7 +118,6 @@ async function seedTables() {
         ON CONFLICT (id) DO NOTHING;
       `);
     }
-
     console.log(`[${MODULE}] Seeding complete.`);
   } catch (err) {
     console.error(`[${MODULE}] Seeding failed:`, err.message);
@@ -121,79 +126,87 @@ async function seedTables() {
 
 await initializeTables();
 
+// Async write to Supabase in background
+async function persistTicket(ticket) {
+  if (!pool) return;
+  try {
+    await pool.query(
+      `INSERT INTO tickets (id, data, created_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (id) DO UPDATE SET data = $2`,
+      [ticket.id, ticket]
+    );
+  } catch (e) {
+    console.error(`[${MODULE}] persistTicket failed:`, e.message);
+  }
+}
+
+async function persistMemory(email, data) {
+  if (!pool) return;
+  try {
+    await pool.query(
+      `INSERT INTO memory (email, data, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (email) DO UPDATE SET data = $2, updated_at = NOW()`,
+      [email.toLowerCase(), data]
+    );
+  } catch (e) {
+    console.error(`[${MODULE}] persistMemory failed:`, e.message);
+  }
+}
+
 export const db = {
-  getTickets: async () => {
-    if (useMemoryCache) return memoryCache.tickets;
+  // SYNC methods — used by pipeline
+  getTickets: () => ticketCache,
+
+  saveTickets: (tickets) => {
+    ticketCache = tickets;
+    // Persist each ticket to Supabase async
+    tickets.forEach(t => persistTicket(t).catch(console.error));
+  },
+
+  saveTicket: (ticket) => {
+    const idx = ticketCache.findIndex(t => t.id === ticket.id);
+    if (idx >= 0) ticketCache[idx] = ticket;
+    else ticketCache.unshift(ticket);
+    persistTicket(ticket).catch(console.error);
+  },
+
+  getMemory: () => memoryCache,
+
+  saveMemory: (memory) => {
+    memoryCache = memory;
+    Object.entries(memory).forEach(([email, data]) =>
+      persistMemory(email, data).catch(console.error)
+    );
+  },
+
+  // ASYNC methods — used by API routes
+  getTicketsAsync: async () => {
+    if (!pool) return ticketCache;
     try {
       const res = await pool.query('SELECT data FROM tickets ORDER BY created_at DESC');
-      return res.rows.map(r => r.data);
+      ticketCache = res.rows.map(r => r.data);
+      return ticketCache;
     } catch (e) {
-      console.error(`[${MODULE}] getTickets failed:`, e.message);
-      return [];
+      console.error(`[${MODULE}] getTicketsAsync failed:`, e.message);
+      return ticketCache;
     }
   },
 
-  saveTicket: async (ticket) => {
-    if (useMemoryCache) {
-      const idx = memoryCache.tickets.findIndex(t => t.id === ticket.id);
-      if (idx >= 0) memoryCache.tickets[idx] = ticket;
-      else memoryCache.tickets.unshift(ticket);
-      return;
-    }
-    try {
-      await pool.query(
-        `INSERT INTO tickets (id, data, created_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (id) DO UPDATE SET data = $2`,
-        [ticket.id, ticket]
-      );
-    } catch (e) {
-      console.error(`[${MODULE}] saveTicket failed:`, e.message);
-    }
-  },
-
-  saveTickets: async (tickets) => {
-    for (const ticket of tickets) {
-      await db.saveTicket(ticket);
-    }
-  },
-
-  getMemory: async () => {
-    if (useMemoryCache) return memoryCache.memory;
-    try {
-      const res = await pool.query('SELECT email, data FROM memory');
-      const mem = {};
-      for (const row of res.rows) {
-        mem[row.email] = row.data;
+  clearTickets: async () => {
+    ticketCache = [];
+    if (pool) {
+      try {
+        await pool.query('DELETE FROM tickets');
+      } catch (e) {
+        console.error(`[${MODULE}] clearTickets failed:`, e.message);
       }
-      return mem;
-    } catch (e) {
-      console.error(`[${MODULE}] getMemory failed:`, e.message);
-      return {};
-    }
-  },
-
-  saveMemory: async (memory) => {
-    if (useMemoryCache) {
-      memoryCache.memory = memory;
-      return;
-    }
-    try {
-      for (const [email, data] of Object.entries(memory)) {
-        await pool.query(
-          `INSERT INTO memory (email, data, updated_at)
-           VALUES ($1, $2, NOW())
-           ON CONFLICT (email) DO UPDATE SET data = $2, updated_at = NOW()`,
-          [email.toLowerCase(), data]
-        );
-      }
-    } catch (e) {
-      console.error(`[${MODULE}] saveMemory failed:`, e.message);
     }
   },
 
   getAnalytics: async () => {
-    if (useMemoryCache) {
+    if (!pool) {
       return {
         dailyVolume: [
           { name: 'Mon', value: 20 }, { name: 'Tue', value: 35 },
@@ -215,10 +228,7 @@ export const db = {
       const cat = await pool.query(
         'SELECT category as name, count as value FROM category_breakdown'
       );
-      return {
-        dailyVolume: vol.rows,
-        categoryDistribution: cat.rows
-      };
+      return { dailyVolume: vol.rows, categoryDistribution: cat.rows };
     } catch (e) {
       console.error(`[${MODULE}] getAnalytics failed:`, e.message);
       return { dailyVolume: [], categoryDistribution: [] };
