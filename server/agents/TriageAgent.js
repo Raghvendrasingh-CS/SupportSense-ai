@@ -88,9 +88,9 @@ function extractRequiredSkills(category) {
 async function analyzeWithLLM(ticket) {
   const startMs = measureStart();
   try {
-    if (!hasOpenAICredentials()) {
-      return null;
-    }
+    if (!hasOpenAICredentials() || config.demoMode) {
+  return null;
+}
 
     const isAzure = Boolean(config.azureOpenai.endpoint && config.azureOpenai.apiKey);
     const url = isAzure
@@ -162,6 +162,7 @@ export async function triageTicket(ticket, emitFn = null) {
     const sentiment = priorityResult.sentiment;
 
     const llmAnalysis = await analyzeWithLLM(ticket);
+if (llmAnalysis === null) log(MODULE, 'LLM unavailable — using rule-based classification');
 
     const finalCategory = llmAnalysis?.category || categoryResult.category;
     const finalPriority = llmAnalysis?.priority || priorityResult.priority;
