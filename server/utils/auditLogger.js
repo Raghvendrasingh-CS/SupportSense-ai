@@ -16,7 +16,8 @@ const isServerless = Boolean(
   process.env.VERCEL ||
   process.env.AWS_LAMBDA_FUNCTION_NAME ||
   process.env.NETLIFY ||
-  process.env.AZURE_FUNCTIONS_ENVIRONMENT
+  process.env.AZURE_FUNCTIONS_ENVIRONMENT ||
+  process.env.RAILWAY
 );
 
 // In-memory audit log cache — used on serverless or when file system is unavailable
