@@ -146,7 +146,7 @@ async function persistMemory(email, data) {
       `INSERT INTO memory (email, data, updated_at)
        VALUES ($1, $2, NOW())
        ON CONFLICT (email) DO UPDATE SET data = $2, updated_at = NOW()`,
-      [email.toLowerCase(), data]
+      [email.toLowerCase(), JSON.stringify(data)]
     );
   } catch (e) {
     console.error(`[${MODULE}] persistMemory failed:`, e.message);
