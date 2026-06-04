@@ -3,9 +3,13 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
 import { log, logError } from './logger.js';
 import { hashString } from './hash.js';
-
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname_local = dirname(__filename);
+const AUDIT_LOG_DIR = path.join(__dirname_local, '..', 'data', 'audit_logs');
 const MODULE = 'AuditLogger';
-const AUDIT_LOG_DIR = path.join(process.cwd(), 'data', 'audit_logs');
+
 
 // Detect restricted environments where file-based audit logs will fail
 const isServerless = Boolean(
