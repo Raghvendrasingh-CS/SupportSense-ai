@@ -11,6 +11,9 @@ const EVENT_COLORS = {
   'escalation:completed': 'border-l-orange-600',
   'batch:started': 'border-l-cyan-400',
   'batch:completed': 'border-l-cyan-600',
+  'debate:initiated': 'border-l-yellow-400',
+  'debate:started': 'border-l-yellow-500',
+  'debate:round': 'border-l-yellow-600',
 };
 
 export default function EventFeed({ events, onClear }) {
@@ -52,6 +55,12 @@ export default function EventFeed({ events, onClear }) {
                 {entry.data?.totalProcessingTimeMs && (
                   <p className="text-xs text-[#0ea5e9]">{entry.data.totalProcessingTimeMs}ms total</p>
                 )}
+                {entry.data?.message && (
+  <p className="text-xs text-[#fbbf24] mt-0.5">{entry.data.message}</p>
+)}
+{entry.data?.speaker && (
+  <p className="text-xs text-[#94a3b8]">Speaker: {entry.data.speaker}</p>
+)}
               </div>
             ))
           )}
