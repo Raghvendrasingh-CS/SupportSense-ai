@@ -113,7 +113,7 @@ export async function processTicket(ticketData, emitFn = null) {
     let escalationResult;
     let debateResult = null;
 
-      if (triageConfidence < 0.85 && triageResult.classification.priority !== 'low') {
+      if (triageConfidence < 0.85 && triageResult.classification.priority === 'critical') {
       log(MODULE, `Triage confidence (${triageConfidence}) < 85%. Starting multi-agent consensus debate...`);
       if (emitFn) {
         emitFn('debate:initiated', {
