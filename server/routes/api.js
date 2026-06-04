@@ -23,7 +23,7 @@ router.get('/config', (req, res) => {
 router.get('/analytics', async (req, res) => {
   try {
     const stats = await db.getAnalytics() || {};
-    const tickets = await db.getTickets() || [];
+    const tickets = await db.getTicketsAsync() || [];
     const analyticsData = {
       dailyVolume: (stats.dailyVolume && stats.dailyVolume.length > 0) ? stats.dailyVolume : [
         { name: 'Mon', value: 20 }, { name: 'Tue', value: 35 }, { name: 'Wed', value: 25 },
@@ -65,7 +65,7 @@ router.get('/analytics/roi', async (req, res) => {
 // Get all tickets
 router.get('/tickets', async (req, res) => {
   try {
-    const tickets = await db.getTickets();
+    const tickets = await db.getTicketsAsync();
     res.json({ tickets: tickets || [] });
   } catch (e) {
     res.json({ tickets: [] });
@@ -116,7 +116,7 @@ router.post('/demo/seed', async (req, res) => {
     const emitFn = req.app.get('emitFn');
 
     // Clear existing tickets
-    await db.saveTickets([]);
+    await db.clearTickets();
 
     // Create 3 demo tickets
     const demoTickets = [
@@ -168,7 +168,7 @@ router.post('/demo/seed', async (req, res) => {
 // Agent workload
 router.get('/agents/workload', async (req, res) => {
   try {
-    const tickets = await db.getTickets();
+    const tickets = await db.getTicketsAsync();
     res.json({
       agents: [
         { name: 'TriageAgent', status: 'active', processed: tickets.length, load: 'normal' },
@@ -234,7 +234,7 @@ async function processTicketAsync(ticket, emitFn) {
   const result = await runPipeline(ticket, emitFn);
 
   // Save final ticket state to Supabase
-  const tickets = await db.getTickets();
+  const tickets = await db.getTicketsAsync();
   const updated = tickets.find(t => t.id === ticket.id);
   if (updated) {
     await db.saveTicket(updated);
