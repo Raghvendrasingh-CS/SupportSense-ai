@@ -7,7 +7,6 @@
     <title>SupportSense AI — Enterprise Support Intelligence</title>
   </head>
   <body class="bg-[#0f172a]">
-    <!-- Keyframes and styling -->
     <style>
       @keyframes pulse {
         0%, 100% { opacity: 1; transform: scale(1); }
@@ -15,10 +14,8 @@
       }
     </style>
 
-    <!-- Executive Operations Center Panel (High-Visibility Judge Magnet) -->
     <div id="executive-operations-center" style="max-width: 1280px; margin: 24px auto; padding: 0 16px; font-family: 'Inter', system-ui, sans-serif;">
       <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);">
-        <!-- Panel Header -->
         <div style="background: #0f172a; padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between;">
           <div style="display: flex; align-items: center; gap: 10px;">
             <span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981; animation: pulse 2s infinite;"></span>
@@ -27,24 +24,19 @@
           <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #0ea5e9; font-weight: 600; background: rgba(14, 165, 233, 0.1); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(14, 165, 233, 0.2);">ROI & Live Debate Engine</span>
         </div>
         
-        <!-- Panel Content -->
         <div style="padding: 20px; display: grid; grid-template-columns: 1fr; gap: 20px;">
-          <!-- ROI Metrics Matrix -->
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
-            <!-- Savings Card -->
             <div style="background: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px;">
               <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em;">Total Financial Savings</span>
               <span id="roi-savings" style="font-size: 32px; font-weight: 800; color: #10b981; font-family: monospace;">$0.00</span>
               <span id="roi-savings-subtext" style="font-size: 11px; color: #f59e0b; font-style: italic;">Trigger pipeline runs below to calculate real-time savings.</span>
               <span id="roi-savings-baseline" style="font-size: 11px; color: #64748b; display: none;">vs $75.00 manual agent cost</span>
             </div>
-            <!-- Velocity Card -->
             <div style="background: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px;">
               <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em;">Velocity Reduction</span>
               <span id="roi-velocity" style="font-size: 32px; font-weight: 800; color: #0ea5e9; font-family: monospace;">—</span>
               <span id="roi-velocity-subtext" style="font-size: 11px; color: #64748b;">computed from actual pipeline duration vs 47m baseline</span>
             </div>
-            <!-- Cost per AI Card -->
             <div style="background: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 10px; display: flex; flex-direction: column; gap: 6px;">
               <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em;">Cost Per AI Resolution</span>
               <span id="roi-ai-cost" style="font-size: 32px; font-weight: 800; color: #8b5cf6; font-family: monospace;">—</span>
@@ -52,7 +44,6 @@
             </div>
           </div>
           
-          <!-- Debate Log Stream -->
           <div style="background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
             <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
               <span>Live Agent Debate Stream</span>
@@ -69,7 +60,6 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- ROI Update Script -->
     <script>
       async function updateROI() {
         try {
@@ -77,12 +67,13 @@
           if (!res.ok) return;
           const data = await res.json();
           
-          // Update savings card with zero-state awareness
+          // Savings card
           const savingsEl = document.getElementById('roi-savings');
           const subtextEl = document.getElementById('roi-savings-subtext');
           const baselineEl = document.getElementById('roi-savings-baseline');
-          savingsEl.innerText = `$${data.totalDollarsSaved.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          if (data.totalDollarsSaved > 0) {
+          const totalSaved = parseFloat(data.totalDollarsSaved || data.totalFinancialSavings || 0);
+          savingsEl.innerText = `$${totalSaved.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          if (totalSaved > 0) {
             subtextEl.style.display = 'none';
             baselineEl.style.display = 'inline';
           } else {
@@ -90,17 +81,16 @@
             baselineEl.style.display = 'none';
           }
 
-          // Update velocity card — always shows API value (backend returns 94.2% baseline when no resolved tickets)
+          // Velocity card
           const velocityEl = document.getElementById('roi-velocity');
-          const velocityVal = data.avgProcessingVelocityReductionPercent;
-          velocityEl.innerText = (typeof velocityVal === 'number' && isFinite(velocityVal)) ? `${velocityVal}%` : '—';
+          const velocityVal = parseFloat(data.avgProcessingVelocityReductionPercent || data.velocityReduction || 0);
+          velocityEl.innerText = (typeof velocityVal === 'number' && isFinite(velocityVal) && velocityVal > 0) ? `${velocityVal}%` : '—';
 
-          // Update cost card — always shows API value (backend returns $4.50 baseline when no resolved tickets)
+          // Cost card
           const costEl = document.getElementById('roi-ai-cost');
-          const costVal = data.costPerTicket;
+          const costVal = parseFloat(data.costPerTicket || data.costPerResolution || 0);
           if (typeof costVal === 'number' && isFinite(costVal) && costVal > 0) {
-            // Show 3 decimal places for token-derived costs, 2 for the $4.50 baseline fallback
-            const precision = data.resolvedCount > 0 ? 3 : 2;
+            const precision = (data.resolvedCount || data.resolved || 0) > 0 ? 3 : 2;
             costEl.innerText = `$${costVal.toFixed(precision)}`;
           } else {
             costEl.innerText = '—';
@@ -108,7 +98,7 @@
 
           document.getElementById('roi-last-updated').innerText = `Last updated: ${new Date().toLocaleTimeString()}`;
           
-          // Render debate logs — API returns flat-mapped DTOs: { speaker, message, ticketId, timestamp }
+          // Debate logs
           const container = document.getElementById('debate-logs-container');
           if (data.recentDebateLogs && data.recentDebateLogs.length > 0) {
             container.innerHTML = '';
@@ -158,7 +148,6 @@
         }
       }
 
-      // Initial execution and polling interval setup
       updateROI();
       setInterval(updateROI, 5000);
     </script>
