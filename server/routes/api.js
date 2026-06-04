@@ -44,27 +44,42 @@ router.get('/analytics', async (req, res) => {
 
 router.get('/analytics/roi', async (req, res) => {
   try {
-    const tickets = await db.getTicketsAsync() || [];
-    const resolved = tickets.filter(t => t.status === 'resolved').length;
-    const escalated = tickets.filter(t => t.status === 'escalated').length;
-    const processed = tickets.filter(t => t.pipeline).length;
-    const totalSaved = resolved * (75 - 4.50);
-    const avgProcessingMs = processed > 0
-      ? Math.round(tickets.filter(t => t.pipeline?.totalProcessingTimeMs).reduce((sum, t) => sum + t.pipeline.totalProcessingTimeMs, 0) / processed)
-      : null;
-    const velocityReduction = avgProcessingMs
-      ? `${Math.round((1 - avgProcessingMs / (47 * 60 * 1000)) * 100)}%`
-      : null;
-    res.json({
-      totalFinancialSavings: totalSaved.toFixed(2),
-      velocityReduction: velocityReduction || (tickets.length > 0 ? '94.2%' : null),
-      costPerResolution: processed > 0 ? (4.50).toFixed(2) : null,
-      ticketsProcessed: tickets.length,
-      resolved,
-      escalated
-    });
+    const { calculateROI } = await import('./analytics.js');
+    const { getAuditLogs } = await import('../utils/auditLogger.js');
+    const tickets = db.getTickets() || [];
+    const metrics = calculateROI(tickets);
+
+    let recentDebateLogs = [];
+    try {
+      const allLogs = await getAuditLogs() || [];
+      const flatStream = [];
+      for (const audit of allLogs) {
+        const ticketId = audit.ticketId || 'TKT-Unknown';
+        const auditTimestamp = audit.timestamp || new Date().toISOString();
+        const debateLogs = audit.agentOutputs?.debate?.debateLogs;
+        if (Array.isArray(debateLogs) && debateLogs.length > 0) {
+          for (const entry of debateLogs) {
+            if (entry.speaker && entry.message) {
+              flatStream.push({ speaker: entry.speaker, message: entry.message, ticketId, timestamp: entry.timestamp || auditTimestamp });
+            }
+          }
+        }
+        flatStream.push({
+          speaker: 'System',
+          message: `Ticket ${ticketId} completed. ${audit.consensusReasoning || 'Standard processing applied.'}`,
+          ticketId,
+          timestamp: auditTimestamp
+        });
+      }
+      flatStream.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      recentDebateLogs = flatStream.slice(0, 20);
+    } catch (auditErr) {
+      console.warn('[Analytics] Audit fetch failed:', auditErr.message);
+    }
+
+    res.json({ ...metrics, recentDebateLogs, calculatedAt: new Date().toISOString() });
   } catch (e) {
-    res.json({ totalFinancialSavings: 0, velocityReduction: null, costPerResolution: null });
+    res.status(500).json({ error: e.message, recentDebateLogs: [] });
   }
 });
 
