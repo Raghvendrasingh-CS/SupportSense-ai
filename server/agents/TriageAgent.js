@@ -12,7 +12,7 @@ const CATEGORY_KEYWORDS = {
   Exchange: ['outlook', 'email', 'calendar', 'exchange', 'mailbox', 'sync', 'email delivery', 'shared mailbox', 'mailbox not provisioned'],
   Teams: ['teams', 'meeting', 'audio', 'video', 'call', 'chat', 'teams recording', 'teams status', 'teams channel', 'presence'],
   Identity: ['password', 'login', 'mfa', 'authentication', 'sign in', 'locked out', 'two-factor', '2fa', 'license error', 'microsoft 365 apps', 'conditional access', 'azure ad', 'unauthorized access', 'admin panel'],
-  Network: ['vpn', 'network', 'connection', 'wifi', 'latency', 'slow', 'vpn users', 'proxy', 'firewall', 'system down', 'entire system', 'point of sale', 'pos system', 'all stores', 'outage', 'down across'],
+  Network: ['vpn', 'network', 'connection', 'wifi', 'latency', 'slow', 'vpn users', 'proxy', 'firewall'],
   PowerPlatform: ['power automate', 'flow', 'automate', 'automation', 'workflow'],
   Complaint: ['legal action', 'lawsuit', 'legal team', 'threatening', 'fourth time', '4th time', 'third time', '3rd time', 'unacceptable', 'breach of service', 'completely unacceptable', '3 years', 'paying customer'],
   Hardware: ['laptop', 'monitor', 'keyboard', 'printer', 'device', 'onedrive sync'],
