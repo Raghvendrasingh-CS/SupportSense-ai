@@ -35,7 +35,7 @@ export default function MemoryPanel({ tickets = [], analytics = null }) {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2">
-          <span className="text-cyan-400 text-base">🧠</span>
+          <span className="text-cyan-400 text-base"></span>
           <h3 className="text-sm font-semibold text-[#e2e8f0]">Shared Agent Memory</h3>
           <span className="text-xs bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-full font-mono">
             {processedTickets} entries
