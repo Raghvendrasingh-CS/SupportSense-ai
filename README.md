@@ -1,7 +1,7 @@
 # SupportSense AI
 
 **Autonomous Multi-Agent Support Intelligence Platform**
-Microsoft Agents League Hackathon 2025 — Enterprise Agents Track
+Microsoft Agents League Hackathon 2026 — Enterprise Agents Track
 
 SupportSense AI is a multi-agent consensus debate platform that triages, resolves, and escalates enterprise IT support tickets through autonomous cross-examination between competing AI agents. When agent confidence drops below threshold, a Debate Engine forces iterative confrontation between Resolution and Escalation agents until consensus is reached or human oversight is triggered. The system integrates Microsoft Graph, Fabric IQ, and Work Intelligence with enterprise-grade RBAC, immutable audit trails, and a real-time Executive Operations Center for financial ROI tracking.
 
@@ -354,4 +354,4 @@ SupportSense/
 
 ## License
 
-MIT — Built for Microsoft Agents League Hackathon 2025
+MIT — Built for Microsoft Agents League Hackathon 2026
