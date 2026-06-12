@@ -87,6 +87,24 @@ if (!isVercel) {
         log(MODULE, `Environment: ${process.env.NODE_ENV}`);
       });
 
+      // Auto-seed demo data if ticket store is empty on startup
+if (config.demoMode) {
+  try {
+    const { seedDemoTickets, getAllTickets } = await import('./pipeline/supportPipeline.js');
+    const existing = getAllTickets();
+    if (!existing || existing.length === 0) {
+      log(MODULE, 'Auto-seeding demo tickets on startup...');
+      const tickets = seedDemoTickets();
+      const { processBatch } = await import('./pipeline/supportPipeline.js');
+      const emitFn = app.get('emitFn');
+      await processBatch(tickets, emitFn);
+      log(MODULE, `Auto-seed complete: ${tickets.length} tickets processed`);
+    }
+  } catch (seedError) {
+    logError(MODULE, 'Auto-seed failed — continuing without seed data', seedError);
+  }
+}
+
       // Error Handlers
       process.on('unhandledRejection', (r) => logError(MODULE, 'Rejection', r));
       process.on('uncaughtException', (e) => {
