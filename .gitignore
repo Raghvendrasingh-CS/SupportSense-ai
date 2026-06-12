@@ -8,4 +8,5 @@ server/db/*.json
 server/db/*.db
 server/db/*.db-wal
 server/db/*.db-shm
-
+server/data/audit_logs/*.json
+server/data/agent_memory.json
