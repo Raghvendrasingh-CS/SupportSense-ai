@@ -50,10 +50,6 @@ app.get('/openapi.json', (req, res) => {
   res.sendFile(path.join(__dirname, '../server/openapi.json'));
 });
 
-// 4. Static Assets & Manifests
-app.get('/openapi.json', (req, res) => res.sendFile(path.join(__dirname, 'openapi.json')));
-app.get(['/ai-plugin.json', '/.well-known/ai-plugin.json'], (req, res) => res.sendFile(path.join(__dirname, 'ai-plugin.json')));
-
 // 5. Socket.io Logic
 if (isVercel) {
   app.set('emitFn', (event, data) => log(MODULE, `[Serverless] Suppressed: ${event}`));
