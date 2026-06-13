@@ -40,6 +40,16 @@ app.use((req, res, next) => {
 // Yeh sabse important hai, taaki static frontend API ko block na kare
 app.use('/api', apiRoutes);
 
+// Microsoft 365 Copilot plugin discovery endpoint
+app.get('/.well-known/ai-plugin.json', (req, res) => {
+  res.sendFile(path.join(__dirname, '../server/ai-plugin.json'));
+});
+
+// OpenAPI spec endpoint
+app.get('/openapi.json', (req, res) => {
+  res.sendFile(path.join(__dirname, '../server/openapi.json'));
+});
+
 // 4. Static Assets & Manifests
 app.get('/openapi.json', (req, res) => res.sendFile(path.join(__dirname, 'openapi.json')));
 app.get(['/ai-plugin.json', '/.well-known/ai-plugin.json'], (req, res) => res.sendFile(path.join(__dirname, 'ai-plugin.json')));
