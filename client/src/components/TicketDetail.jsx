@@ -2,6 +2,7 @@ import { useState } from 'react';
 import StatusBadge from './StatusBadge';
 import CustomerHistoryPanel from './CustomerHistoryPanel';
 import ReasoningChain from './ReasoningChain';
+import DebateTranscript from './DebateTranscript';
 import AdaptiveCard from './AdaptiveCard';
 import { api } from '../services/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -247,6 +248,10 @@ export default function TicketDetail({ ticket, customerHistory, riskProfile, onR
             </PipelineStep>
 
             <ReasoningChain reasoning={reasoning} startExpanded={true} />
+
+            {pipeline?.debate && (
+  <DebateTranscript debate={pipeline.debate} />
+)}
 
              <div className="flex items-center justify-between pt-4 border-t border-[#334155]">
               <span className="text-xs text-[#94a3b8]">
