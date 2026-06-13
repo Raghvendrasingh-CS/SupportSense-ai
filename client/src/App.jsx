@@ -238,7 +238,7 @@ export default function App() {
 
       <footer className="border-t border-[#334155] bg-[#1e293b] mt-12">
         <div className="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-[#64748b]">
-          SupportSense AI · Microsoft Agents League Hackathon 2025 · Enterprise Agents Track · Work IQ + Fabric IQ
+          SupportSense AI · Built by Chronix AKA Raghvendra Singh · © 2026 All Rights Reserved
         </div>
       </footer>
     </div>
