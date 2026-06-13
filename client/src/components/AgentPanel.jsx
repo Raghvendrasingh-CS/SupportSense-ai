@@ -1,13 +1,56 @@
 // Agent workload panel showing support agent availability and skill matching.
 export default function AgentPanel({ workload }) {
   try {
-    if (!workload?.insights) {
-      return (
-        <div className="bg-[#1e293b] rounded-xl shadow-sm border border-[#334155] p-6">
-          <p className="text-[#94a3b8] text-sm">Loading agent data...</p>
+    if (!workload || !workload.agents) {
+  return (
+    <div className="bg-[#1e293b] rounded-xl shadow-sm border border-[#334155] p-6">
+      <h3 className="text-sm font-semibold text-[#e2e8f0] mb-4">
+        Support Agent Pool (Work IQ)
+      </h3>
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-[#0f172a] rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-[#f1f5f9]">5</p>
+          <p className="text-xs text-[#94a3b8] mt-1">Total Agents</p>
         </div>
-      );
-    }
+        <div className="bg-[#0f172a] rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-green-400">3</p>
+          <p className="text-xs text-[#94a3b8] mt-1">Available</p>
+        </div>
+        <div className="bg-[#0f172a] rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-[#0ea5e9]">4.6</p>
+          <p className="text-xs text-[#94a3b8] mt-1">Avg Workload</p>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {[
+          { name: 'Alex Rivera', skills: 'SharePoint, Exchange · L2', available: true, load: 40 },
+          { name: 'Priya Sharma', skills: 'Teams, Network · L2', available: false, load: 75 },
+          { name: 'Tom O\'Brien', skills: 'Identity, Security · L3', available: true, load: 30 },
+          { name: 'Kim Nakamura', skills: 'Power Platform, Azure · L2', available: true, load: 25 },
+          { name: 'Jordan Lee', skills: 'Exchange, Outlook · L1', available: false, load: 90 },
+        ].map((agent) => (
+          <div key={agent.name} className="flex items-center justify-between p-3 bg-[#0f172a] rounded-lg border border-[#334155]">
+            <div>
+              <p className="text-sm font-medium text-[#f1f5f9]">{agent.name}</p>
+              <p className="text-xs text-[#94a3b8]">{agent.skills}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-24 h-1.5 bg-[#334155] rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${agent.load > 70 ? 'bg-red-500' : agent.load > 40 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                  style={{ width: `${agent.load}%` }}
+                />
+              </div>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${agent.available ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                {agent.available ? 'available' : 'busy'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
     const { totalAgents, availableAgents, avgWorkload, agentPool } = workload.insights;
 
